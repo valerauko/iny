@@ -121,14 +121,13 @@
         (cond
           (instance? HttpRequest msg)
             (let []
-              (println (class msg) (.toString msg) "foo")
               (reset! keep-alive? (HttpUtil/isKeepAlive msg)))
           (instance? LastHttpContent msg)
             (let [ftr (respond ctx (user-handler))]
               (when-not keep-alive?
                 (.addListener ftr ChannelFutureListener/CLOSE)))
-          (instance? HttpContent msg)
-            (println "fuga")
+          ; (instance? HttpContent msg)
+          ;   (println "fuga")
           :else
             (.fireChannelRead ctx msg)
          ))
