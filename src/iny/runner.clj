@@ -44,6 +44,8 @@
             HttpRequest
             HttpVersion
             HttpResponseStatus
+            DefaultHttpHeaders
+            DefaultHttpContent
             DefaultHttpResponse
             DefaultFullHttpResponse
             DefaultLastHttpContent])
@@ -89,18 +91,20 @@
   Long
   (->status [number] (HttpResponseStatus/valueOf number)))
 
-(defn ^ChannelFuture respond
-  [^ChannelHandlerContext ctx
-   {:keys [body headers status]}]
-  (let [status (->status status)
-        buffer (->buffer body)
-        response (DefaultFullHttpResponse.
-                  HttpVersion/HTTP_1_1
-                  status
-                  buffer
-                  false)]
-    (HttpUtil/setContentLength response (.readableBytes buffer))
-    (.writeAndFlush ctx response)))
+(let [base-headers (DefaultHttpHeaders. false)]
+  (defn ^ChannelFuture respond
+    [^ChannelHandlerContext ctx
+     {:keys [body headers status]}]
+    (let [status (->status status)
+          buffer (->buffer body)
+          response (DefaultHttpResponse.
+                    HttpVersion/HTTP_1_1
+                    status
+                    (.copy base-headers))]
+      (HttpUtil/setContentLength response (.readableBytes buffer))
+      (.write ctx response (.voidPromise ctx))
+      (.write ctx (DefaultHttpContent. buffer) (.voidPromise ctx))
+      (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))))
 
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
