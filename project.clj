@@ -4,6 +4,7 @@
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.10.1"]
+                 [metosin/jsonista "0.2.6"]
                  [io.netty/netty-common "4.1.50.Final"]
                  [io.netty/netty-buffer "4.1.50.Final"]
                  [io.netty/netty-transport "4.1.50.Final"]
@@ -29,7 +30,6 @@
   :profiles {:uberjar {:aot :all}
              :dev {:dependencies
                    [[criterium "0.4.5"]
-                    [metosin/jsonista "0.2.6"]
                     [aleph "0.4.7-alpha5"]
                     [metosin/pohjavirta "0.0.1-alpha7"]
                     [com.clojure-goes-fast/clj-async-profiler "0.4.1"]]}})
