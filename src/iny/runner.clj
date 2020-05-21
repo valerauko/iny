@@ -156,7 +156,7 @@
     (let [group (if epoll?
                   (EpollEventLoopGroup. threads)
                   (NioEventLoopGroup. threads))
-          port 1337]
+          port 8080]
       (try
         (let [boot (doto (ServerBootstrap.)
                          (.group ^MultithreadEventLoopGroup group)
