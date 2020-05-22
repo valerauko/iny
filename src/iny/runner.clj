@@ -149,24 +149,29 @@
         (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
         (.addLast pipeline "my-handler" (http-handler user-handler))))))
 
-(let [threads (* 2 (.availableProcessors (Runtime/getRuntime)))
-      epoll? (Epoll/isAvailable)]
+(let [cores (.availableProcessors (Runtime/getRuntime))
+      epoll? (Epoll/isAvailable)
+      socket-chan (if epoll? EpollServerSocketChannel NioServerSocketChannel)]
   (defn -main
     [& _]
-    (let [group (if epoll?
-                  (EpollEventLoopGroup. threads)
-                  (NioEventLoopGroup. threads))
+    (let [parent-group (if epoll?
+                         (EpollEventLoopGroup. (* 2 cores))
+                         (NioEventLoopGroup. (* 2 cores)))
+          child-group (if epoll?
+                        (EpollEventLoopGroup. (* 3 cores))
+                        (NioEventLoopGroup. (* 3 cores)))
           port 8080]
       (try
         (let [boot (doto (ServerBootstrap.)
-                         (.group ^MultithreadEventLoopGroup group)
-                         (.channel (if epoll?
-                                     EpollServerSocketChannel
-                                     NioServerSocketChannel))
+                         (.group ^MultithreadEventLoopGroup parent-group
+                                 ^MultithreadEventLoopGroup child-group)
+                         (.channel socket-chan)
                          (.childHandler (server-pipeline my-handler)))
               channel (-> boot (.bind port) .sync .channel)]
           (fn closer []
             (-> channel .close .sync)
-            (.shutdownGracefully ^MultithreadEventLoopGroup group)))
+            (.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
+            (.shutdownGracefully ^MultithreadEventLoopGroup child-group)))
         (catch Exception e
-          @(.shutdownGracefully ^MultithreadEventLoopGroup group))))))
+          @(.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
+          @(.shutdownGracefully ^MultithreadEventLoopGroup child-group))))))
