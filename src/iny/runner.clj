@@ -92,6 +92,24 @@
   (->status [number] (HttpResponseStatus/valueOf number)))
 
 (let [base-headers (DefaultHttpHeaders. false)]
+  (defn write-response
+    [^ChannelHandlerContext ctx
+     ^HttpResponse          head
+     ^HttpContent           body]
+    (.write ctx head (.voidPromise ctx))
+    (if body (.write ctx body (.voidPromise ctx)))
+    (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))
+
+  (let [error-head (doto (DefaultHttpResponse.
+                          HttpVersion/HTTP_1_1
+                          HttpResponseStatus/INTERNAL_SERVER_ERROR
+                          (.copy base-headers))
+                         (HttpUtil/setContentLength 0))]
+    (defn ^ChannelFuture respond-500
+      [^ChannelHandlerContext ctx
+       ^Throwable             ex]
+      (write-response ctx error-head nil)))
+
   (defn ^ChannelFuture respond
     [^ChannelHandlerContext ctx
      {:keys [body headers status]}]
@@ -102,9 +120,7 @@
                     status
                     (.copy base-headers))]
       (HttpUtil/setContentLength response (.readableBytes buffer))
-      (.write ctx response (.voidPromise ctx))
-      (.write ctx (DefaultHttpContent. buffer) (.voidPromise ctx))
-      (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))))
+      (write-response ctx response (DefaultHttpContent. buffer)))))
 
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
@@ -116,7 +132,7 @@
       (handlerRemoved [_ ctx])
       (exceptionCaught [_ ctx ex]
         (when-not (instance? IOException ex)
-          (throw ex)))
+          (respond-500 ctx ex)))
       (channelRegistered [_ ctx])
       (channelUnregistered [_ ctx])
       (channelActive [_ ctx])
