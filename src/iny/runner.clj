@@ -252,14 +252,17 @@
       (channelRead [_ ctx msg]
         (cond
           (instance? HttpRequest msg)
-            (let []
-              (reset! keep-alive? (HttpUtil/isKeepAlive msg)))
-          (instance? LastHttpContent msg)
-            (let [ftr (respond ctx (user-handler))]
-              (when-not keep-alive?
-                (.addListener ftr ChannelFutureListener/CLOSE)))
-          ; (instance? HttpContent msg)
-          ;   (println "fuga")
+            (when-not (HttpHeaders/isTransferEncodingChunked msg)
+              (let [ftr (->> msg
+                             (netty->ring-request ctx)
+                             (user-handler)
+                             (respond ctx))]
+                (when-not keep-alive?
+                  (.addListener ftr ChannelFutureListener/CLOSE))))
+          ; (instance? LastHttpContent msg)
+          ;   nil
+          (instance? HttpContent msg)
+            nil
           :else
             (.fireChannelRead ctx msg)
          ))
