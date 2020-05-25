@@ -331,6 +331,7 @@
                          (.childHandler (server-pipeline my-handler))
                          (.childOption ChannelOption/SO_REUSEADDR true)
                          (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
+                         (.childOption ChannelOption/TCP_NODELAY true)
                          (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true)))
               channel (-> boot (.bind port) .sync .channel)]
           (fn closer []
