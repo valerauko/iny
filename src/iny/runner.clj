@@ -135,8 +135,36 @@
   Long
   (->status [number] (HttpResponseStatus/valueOf number)))
 
-(let [base-headers (DefaultHttpHeaders. false)]
-  (defn write-response
+(defprotocol Headers
+  (^HttpHeaders ->headers [_]))
+
+(let [base-headers (doto (DefaultHttpHeaders. false)
+                         (.add HttpHeaderNames/SERVER (str "iny/" version))
+                         (.add HttpHeaderNames/CONTENT_TYPE "text/plain"))]
+  (defn headers-with-date
+    []
+    (doto (.copy base-headers)
+          (.add HttpHeaderNames/DATE (date-header-value))))
+
+  (extend-protocol Headers
+    nil
+    (->headers [_]
+      (headers-with-date))
+
+    PersistentArrayMap
+    (->headers [^Iterable header-map]
+      (let [headers ^HttpHeaders (headers-with-date)
+            i (.iterator header-map)]
+        (loop []
+          (if (.hasNext i)
+            (let [elem ^Map$Entry (.next i)]
+              (.set headers
+                    (-> elem .getKey .toString .toLowerCase)
+                    (.getValue elem))
+              (recur))))
+        headers)))
+
+  (defn ^ChannelFuture write-response
     [^ChannelHandlerContext ctx
      ^HttpResponse          head
      ^HttpContent           body]
@@ -147,7 +175,7 @@
   (let [error-head (doto (DefaultHttpResponse.
                           HttpVersion/HTTP_1_1
                           HttpResponseStatus/INTERNAL_SERVER_ERROR
-                          (.copy base-headers))
+                          ^HttpHeaders (headers-with-date))
                          (HttpUtil/setContentLength 0))]
     (defn ^ChannelFuture respond-500
       [^ChannelHandlerContext ctx
@@ -159,12 +187,14 @@
      {:keys [body headers status]}]
     (let [status (->status status)
           buffer (->buffer body)
+          headers (->headers headers)
           response (DefaultHttpResponse.
                     HttpVersion/HTTP_1_1
                     status
-                    (.copy base-headers))]
+                    headers)
+          response-body (DefaultHttpContent. buffer)]
       (HttpUtil/setContentLength response (.readableBytes buffer))
-      (write-response ctx response (DefaultHttpContent. buffer)))))
+      (write-response ctx response response-body))))
 
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
@@ -177,7 +207,14 @@
       (exceptionCaught [_ ctx ex]
         (when-not (instance? IOException ex)
           (respond-500 ctx ex)))
-      (channelRegistered [_ ctx])
+      (channelRegistered [_ ctx]
+        (let [ref (AtomicReference. (rfc-1123-date-string))]
+          (.set date-value ref)
+          (.scheduleAtFixedRate (.executor ctx)
+            #(.set ref (rfc-1123-date-string))
+            1000
+            1000
+            TimeUnit/MILLISECONDS)))
       (channelUnregistered [_ ctx])
       (channelActive [_ ctx])
       (channelInactive [_ ctx])
