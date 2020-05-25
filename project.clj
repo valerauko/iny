@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [org.clojure/tools.logging "1.1.0"
                   :exclusions [org.clojure/clojure]]
+                 [potemkin "0.4.5"]
                  [metosin/jsonista "0.2.6"]
                  [io.netty/netty-common "4.1.50.Final"]
                  [io.netty/netty-buffer "4.1.50.Final"]

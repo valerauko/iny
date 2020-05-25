@@ -1,5 +1,6 @@
 (ns iny.runner
   (:require [clojure.tools.logging :as log]
+            [potemkin :refer [def-derived-map]]
             [clj-async-profiler.core :as prof]
             [jsonista.core :as json])
   (:import [clojure.lang
@@ -224,25 +225,31 @@
                    "CONNECT" :connect}
                   (java.util.HashMap.)
                   (Collections/unmodifiableMap))]
-  (defn netty->ring-request
-    [^ChannelHandlerContext ctx
-     ^HttpRequest           req]
-    (let [uri     (.uri req)
-          q-at    (.indexOf uri (int 63))
-          query?  (not (neg? q-at))
-          channel (.channel ctx)]
-      {:uri            (if query?
-                         (.substring uri 0 q-at)
-                         uri)
-       :query-string   (if query?
-                         (.substring uri q-at))
-       :headers        (.headers req)
-       :request-method (->> req .method .name (.get methods))
-       :scheme         :http
-       :server-name    (some-> channel ^InetSocketAddress (.localAddress) .getHostName)
-       :server-port    (some-> channel ^InetSocketAddress (.localAddress) .getPort)
-       :remote-addr    (some-> channel ^InetSocketAddress (.remoteAddress) .getAddress .getHostAddress)
-       :iny/keep-alive (HttpUtil/isKeepAlive req)})))
+  (defn request-method
+    [^HttpRequest req]
+    (->> req (.method) (.name) (.get methods))))
+
+(def-derived-map RingRequest
+  [^ChannelHandlerContext ctx
+   ^HttpRequest           req
+   q-at]
+  :uri            (if (not (neg? q-at))
+                    (.substring (.uri req) 0 q-at)
+                    (.uri req))
+  :query-string   (if (not (neg? q-at))
+                    (.substring (.uri req) q-at))
+  :headers        (.headers req)
+  :request-method (request-method req)
+  :scheme         :http
+  :server-name    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getHostName))
+  :server-port    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getPort))
+  :remote-addr    (some-> ctx (.channel) ^InetSocketAddress (.remoteAddress) (.getAddress) (.getHostAddress))
+  :iny/keep-alive (HttpUtil/isKeepAlive req))
+
+(defn netty->ring-request
+  [^ChannelHandlerContext ctx
+   ^HttpRequest           req]
+  (->RingRequest ctx req (.indexOf (.uri req) (int 63))))
 
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
