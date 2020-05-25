@@ -107,21 +107,33 @@
       (.get ref))))
 
 (defprotocol WritableBody
-  (^ByteBuf ->buffer [_]))
+  (^ByteBuf ->buffer [_] [_ _]))
 
 (let [charset (Charset/forName "UTF-8")]
   (extend-protocol WritableBody
     (Class/forName "[B")
-    (->buffer [b]
-      (Unpooled/copiedBuffer ^bytes b))
+    (->buffer
+      ([b]
+        (Unpooled/copiedBuffer ^bytes b))
+      ([b ctx]
+        (doto (-> ^ChannelHandlerContext ctx
+                  (.alloc)
+                  (.ioBuffer (alength ^bytes b)))
+              (.writeBytes ^bytes b))))
 
     nil
-    (->buffer [_]
-      Unpooled/EMPTY_BUFFER)
+    (->buffer
+      ([_]
+        Unpooled/EMPTY_BUFFER)
+      ([_ _]
+        Unpooled/EMPTY_BUFFER))
 
     String
-    (->buffer [str]
-      (Unpooled/copiedBuffer ^String str charset))))
+    (->buffer
+      ([str]
+        (Unpooled/copiedBuffer ^String str charset))
+      ([str ctx]
+        (->buffer ^bytes (.getBytes str) ctx)))))
 
 (defprotocol ResponseStatus
   (^HttpResponseStatus ->status [_]))
@@ -188,7 +200,7 @@
     [^ChannelHandlerContext ctx
      {:keys [body headers status]}]
     (let [status (->status status)
-          buffer (->buffer body)
+          buffer (->buffer body ctx)
           headers (->headers headers)
           response (DefaultHttpResponse.
                     HttpVersion/HTTP_1_1
@@ -300,12 +312,14 @@
                          (.option ChannelOption/SO_BACKLOG (int 1024))
                          (.option ChannelOption/SO_REUSEADDR true)
                          (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
+                         (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
                          (.group ^MultithreadEventLoopGroup parent-group
                                  ^MultithreadEventLoopGroup child-group)
                          (.channel socket-chan)
                          (.childHandler (server-pipeline my-handler))
                          (.childOption ChannelOption/SO_REUSEADDR true)
-                         (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE))
+                         (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
+                         (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true)))
               channel (-> boot (.bind port) .sync .channel)]
           (fn closer []
             (-> channel .close .sync)
