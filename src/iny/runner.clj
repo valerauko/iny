@@ -196,6 +196,37 @@
       (HttpUtil/setContentLength response (.readableBytes buffer))
       (write-response ctx response response-body))))
 
+(let [methods (-> {"OPTIONS" :options
+                   "GET" :get
+                   "HEAD" :head
+                   "POST" :post
+                   "PUT" :put
+                   "PATCH" :patch
+                   "DELETE" :delete
+                   "TRACE" :trace
+                   "CONNECT" :connect}
+                  (java.util.HashMap.)
+                  (Collections/unmodifiableMap))]
+  (defn netty->ring-request
+    [^ChannelHandlerContext ctx
+     ^HttpRequest           req]
+    (let [uri     (.uri req)
+          q-at    (.indexOf uri (int 63))
+          query?  (not (neg? q-at))
+          channel (.channel ctx)]
+      {:uri            (if query?
+                         (.substring uri 0 q-at)
+                         uri)
+       :query-string   (if query?
+                         (.substring uri q-at))
+       :headers        (.headers req)
+       :request-method (->> req .method .name (.get methods))
+       :scheme         :http
+       :server-name    (some-> channel ^InetSocketAddress (.localAddress) .getHostName)
+       :server-port    (some-> channel ^InetSocketAddress (.localAddress) .getPort)
+       :remote-addr    (some-> channel ^InetSocketAddress (.remoteAddress) .getAddress .getHostAddress)
+       :iny/keep-alive (HttpUtil/isKeepAlive req)})))
+
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
   (let [keep-alive? (atom false)]
