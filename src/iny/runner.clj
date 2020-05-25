@@ -89,22 +89,25 @@
 (defonce ^FastThreadLocal date-format (FastThreadLocal.))
 (defonce ^FastThreadLocal date-value (FastThreadLocal.))
 
-(defn rfc-1123-date-string []
-  (let [^DateFormat format
-        (or
-          (.get date-format)
-          (let [format (SimpleDateFormat. "EEE, dd MMM yyyy HH:mm:ss z" Locale/ENGLISH)]
-            (.setTimeZone format (TimeZone/getTimeZone "GMT"))
-            (.set date-format format)
-            format))]
+(defmacro ref-get-or-set [^FastThreadLocal ftl or-value]
+  `(if-let [^AtomicReference ref# (.get ~ftl)]
+     (.get ref#)
+     (let [new-ref# (AtomicReference. ~or-value)]
+       (.set ~ftl new-ref#)
+       (.get new-ref#))))
+
+(defn ^DateFormat header-date-format
+  "SimpleDateFormat isn't thread-safe so it has to be made for each worker"
+  []
+  (doto (SimpleDateFormat. "EEE, dd MMM yyyy HH:mm:ss z" Locale/ENGLISH)
+        (.setTimeZone (TimeZone/getTimeZone "GMT"))))
+
+(defn formatted-header-date []
+  (let [^DateFormat format (ref-get-or-set date-format (header-date-format))]
     (AsciiString. (.format format (Date.)))))
 
 (defn ^CharSequence date-header-value []
-  (if-let [^AtomicReference ref (.get date-value)]
-    (.get ref)
-    (let [ref (AtomicReference. (rfc-1123-date-string))]
-      (.set date-value ref)
-      (.get ref))))
+  (ref-get-or-set date-value (formatted-header-date)))
 
 (defprotocol WritableBody
   (^ByteBuf ->buffer [_] [_ _]))
@@ -253,10 +256,12 @@
         (when-not (instance? IOException ex)
           (respond-500 ctx ex)))
       (channelRegistered [_ ctx]
-        (let [ref (AtomicReference. (rfc-1123-date-string))]
+        (let [ref (AtomicReference. (formatted-header-date))]
+          ; header date is accurate to seconds
+          ; so have it update every second
           (.set date-value ref)
           (.scheduleAtFixedRate (.executor ctx)
-            #(.set ref (rfc-1123-date-string))
+            #(.set ref (formatted-header-date))
             1000
             1000
             TimeUnit/MILLISECONDS)))
