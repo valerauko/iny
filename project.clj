@@ -32,6 +32,6 @@
   :profiles {:uberjar {:aot :all}
              :dev {:dependencies
                    [[criterium "0.4.5"]
-                    [aleph "0.4.7-alpha5"]
+                    ; [aleph "0.4.7-alpha5"]
                     [metosin/pohjavirta "0.0.1-alpha7"]
                     [com.clojure-goes-fast/clj-async-profiler "0.4.1"]]}})
