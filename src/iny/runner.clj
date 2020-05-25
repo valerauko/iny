@@ -294,10 +294,15 @@
           port 8080]
       (try
         (let [boot (doto (ServerBootstrap.)
+                         (.option ChannelOption/SO_BACKLOG (int 1024))
+                         (.option ChannelOption/SO_REUSEADDR true)
+                         (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
                          (.group ^MultithreadEventLoopGroup parent-group
                                  ^MultithreadEventLoopGroup child-group)
                          (.channel socket-chan)
-                         (.childHandler (server-pipeline my-handler)))
+                         (.childHandler (server-pipeline my-handler))
+                         (.childOption ChannelOption/SO_REUSEADDR true)
+                         (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE))
               channel (-> boot (.bind port) .sync .channel)]
           (fn closer []
             (-> channel .close .sync)
