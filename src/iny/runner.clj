@@ -26,7 +26,8 @@
             ByteBuffer]
            [io.netty.util
             AsciiString
-            ReferenceCountUtil]
+            ResourceLeakDetector
+            ResourceLeakDetector$Level]
            [io.netty.util.concurrent
             FastThreadLocal]
            [java.nio.charset
@@ -79,6 +80,7 @@
   (:gen-class))
 
 (set! *warn-on-reflection* true)
+(ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
 (defn my-handler [{uri :uri}]
   {:status 200
