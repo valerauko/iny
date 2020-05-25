@@ -1,10 +1,33 @@
 (ns iny.runner
-  (:require [clj-async-profiler.core :as prof]
+  (:require [clojure.tools.logging :as log]
+            [clj-async-profiler.core :as prof]
             [jsonista.core :as json])
-  (:import [java.io
+  (:import [clojure.lang
+            PersistentArrayMap]
+           [java.util
+            Date
+            TimeZone
+            Locale
+            Collections
+            Map$Entry]
+           [java.util.concurrent
+            TimeUnit]
+           [java.util.concurrent.atomic
+            AtomicReference]
+           [java.text
+            DateFormat
+            SimpleDateFormat]
+           [java.io
             IOException]
+           [java.net
+            InetSocketAddress]
            [java.nio
             ByteBuffer]
+           [io.netty.util
+            AsciiString
+            ReferenceCountUtil]
+           [io.netty.util.concurrent
+            FastThreadLocal]
            [java.nio.charset
             Charset]
            [io.netty.bootstrap
@@ -12,10 +35,11 @@
            [io.netty.buffer
             ByteBuf
             Unpooled
+            PooledByteBufAllocator
             AdvancedLeakAwareByteBuf]
            [io.netty.channel
             MultithreadEventLoopGroup
-            ChannelPipeline
+            ChannelOption
             ChannelInitializer
             ChannelFuture
             ChannelFutureListener
@@ -36,29 +60,49 @@
             FlushConsolidationHandler]
            [io.netty.handler.codec.http
             HttpUtil
-            HttpResponseEncoder
             HttpServerCodec
             HttpServerExpectContinueHandler
             HttpContent
             LastHttpContent
             HttpRequest
+            HttpResponse
             HttpVersion
             HttpResponseStatus
+            HttpHeaders
+            HttpHeaderNames
             DefaultHttpHeaders
             DefaultHttpContent
-            DefaultHttpResponse
-            DefaultFullHttpResponse
-            DefaultLastHttpContent])
+            DefaultHttpResponse])
   (:gen-class))
 
 (set! *warn-on-reflection* true)
 
-(defn my-handler [& _]
+(defn my-handler [{uri :uri}]
   {:status 200
-   :body (json/write-value-as-bytes {:message "hello"})
-   :headers {"content-type" "text/plain"}})
+   :body (json/write-value-as-bytes {:message (str "Hello from " uri)})
+   :headers {"content-type" "application/json"}})
 
 (def version "0.1.0")
+
+(defonce ^FastThreadLocal date-format (FastThreadLocal.))
+(defonce ^FastThreadLocal date-value (FastThreadLocal.))
+
+(defn rfc-1123-date-string []
+  (let [^DateFormat format
+        (or
+          (.get date-format)
+          (let [format (SimpleDateFormat. "EEE, dd MMM yyyy HH:mm:ss z" Locale/ENGLISH)]
+            (.setTimeZone format (TimeZone/getTimeZone "GMT"))
+            (.set date-format format)
+            format))]
+    (AsciiString. (.format format (Date.)))))
+
+(defn ^CharSequence date-header-value []
+  (if-let [^AtomicReference ref (.get date-value)]
+    (.get ref)
+    (let [ref (AtomicReference. (rfc-1123-date-string))]
+      (.set date-value ref)
+      (.get ref))))
 
 (defprotocol WritableBody
   (^ByteBuf ->buffer [_]))
