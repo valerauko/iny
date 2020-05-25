@@ -155,6 +155,14 @@
 (defprotocol Headers
   (^HttpHeaders ->headers [_]))
 
+(defn ^ChannelFuture write-response
+  [^ChannelHandlerContext ctx
+   ^HttpResponse          head
+   ^HttpContent           body]
+  (.write ctx head (.voidPromise ctx))
+  (if body (.write ctx body (.voidPromise ctx)))
+  (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))
+
 (let [base-headers (doto (DefaultHttpHeaders. false)
                          (.add HttpHeaderNames/SERVER (str "iny/" version))
                          (.add HttpHeaderNames/CONTENT_TYPE "text/plain"))]
@@ -180,14 +188,6 @@
                     (.getValue elem))
               (recur))))
         headers)))
-
-  (defn ^ChannelFuture write-response
-    [^ChannelHandlerContext ctx
-     ^HttpResponse          head
-     ^HttpContent           body]
-    (.write ctx head (.voidPromise ctx))
-    (if body (.write ctx body (.voidPromise ctx)))
-    (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))
 
   (let [error-head (doto (DefaultHttpResponse.
                           HttpVersion/HTTP_1_1
