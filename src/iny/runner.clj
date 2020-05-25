@@ -66,6 +66,8 @@
             LastHttpContent
             HttpRequest
             HttpResponse
+            HttpRequestDecoder
+            HttpResponseEncoder
             HttpVersion
             HttpResponseStatus
             HttpHeaders
@@ -276,7 +278,8 @@
     (initChannel [^SocketChannel ch]
       (let [pipeline (.pipeline ch)]
         (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
-        (.addLast pipeline "http-codec" (HttpServerCodec.))
+        (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
+        (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
         (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
         (.addLast pipeline "my-handler" (http-handler user-handler))))))
 
