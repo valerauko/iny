@@ -306,33 +306,33 @@
   [handler]
   (let [cores (.availableProcessors (Runtime/getRuntime))
         epoll? (Epoll/isAvailable)
-        socket-chan (if epoll? EpollServerSocketChannel NioServerSocketChannel)]
-    (let [parent-group (if epoll?
-                         (EpollEventLoopGroup. (* 2 cores))
-                         (NioEventLoopGroup. (* 2 cores)))
-          child-group (if epoll?
-                        (EpollEventLoopGroup. (* 3 cores))
-                        (NioEventLoopGroup. (* 3 cores)))
-          port 8080]
-      (try
-        (let [boot (doto (ServerBootstrap.)
-                         (.option ChannelOption/SO_BACKLOG (int 1024))
-                         (.option ChannelOption/SO_REUSEADDR true)
-                         (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
-                         (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
-                         (.group ^MultithreadEventLoopGroup parent-group
-                                 ^MultithreadEventLoopGroup child-group)
-                         (.channel socket-chan)
-                         (.childHandler (server-pipeline handler))
-                         (.childOption ChannelOption/SO_REUSEADDR true)
-                         (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
-                         (.childOption ChannelOption/TCP_NODELAY true)
-                         (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true)))
-              channel (-> boot (.bind port) .sync .channel)]
-          (fn closer []
-            (-> channel .close .sync)
-            (.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
-            (.shutdownGracefully ^MultithreadEventLoopGroup child-group)))
-        (catch Exception e
-          @(.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
-          @(.shutdownGracefully ^MultithreadEventLoopGroup child-group))))))
+        socket-chan (if epoll? EpollServerSocketChannel NioServerSocketChannel)
+        parent-group (if epoll?
+                       (EpollEventLoopGroup. (* 2 cores))
+                       (NioEventLoopGroup. (* 2 cores)))
+        child-group (if epoll?
+                      (EpollEventLoopGroup. (* 3 cores))
+                      (NioEventLoopGroup. (* 3 cores)))
+        port 8080]
+    (try
+      (let [boot (doto (ServerBootstrap.)
+                       (.option ChannelOption/SO_BACKLOG (int 1024))
+                       (.option ChannelOption/SO_REUSEADDR true)
+                       (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
+                       (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
+                       (.group ^MultithreadEventLoopGroup parent-group
+                               ^MultithreadEventLoopGroup child-group)
+                       (.channel socket-chan)
+                       (.childHandler (server-pipeline handler))
+                       (.childOption ChannelOption/SO_REUSEADDR true)
+                       (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
+                       (.childOption ChannelOption/TCP_NODELAY true)
+                       (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true)))
+            channel (-> boot (.bind port) .sync .channel)]
+        (fn closer []
+          (-> channel .close .sync)
+          (.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
+          (.shutdownGracefully ^MultithreadEventLoopGroup child-group)))
+      (catch Exception e
+        @(.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
+        @(.shutdownGracefully ^MultithreadEventLoopGroup child-group)))))
