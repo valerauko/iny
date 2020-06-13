@@ -17,23 +17,34 @@
                  [io.netty/netty-codec "4.1.50.Final"]
                  [io.netty/netty-handler "4.1.50.Final"]
                  [io.netty/netty-codec-http "4.1.50.Final"]]
+
   :repl-options {:init-ns iny.runner}
   :main ^:skip-aot iny.runner
-  :jvm-opts ["-server"
-             "-Xms2G"
-             "-Xmx2G"
-             "-XX:+UseNUMA"
-             "-XX:+UseParallelGC"
-             "-XX:+AggressiveOpts"
-             "-Dvertx.disableMetrics=true"
-             "-Dvertx.threadChecks=false"
-             "-Dvertx.disableContextTimings=true"
-             "-Dvertx.disableTCCL=true"
-             "-Djdk.attach.allowAttachSelf"
-             "-Dclojure.compiler.direct-linking=true"]
-  :profiles {:uberjar {:aot :all}
-             :dev {:dependencies
-                   [[criterium "0.4.5"]
+
+  :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
+
+  :aliases {"analyze" ["with-profile" "analyze" "do" ["run"]]}
+
+  :profiles {:uberjar {:aot :all
+                       :uberjar-name "iny.jar"}
+             ; cf https://www.graalvm.org/docs/reference-manual/native-image/#tracing-agent
+             :analyze {:aot :all
+                       :jvm-opts ["-agentlib:native-image-agent=config-output-dir=./resources"]}
+             :dev {:jvm-opts
+                   ["-server"
+                    "-Xms2G"
+                    "-Xmx2G"
+                    "-XX:+UseNUMA"
+                    "-XX:+UseParallelGC"
+                    "-XX:+AggressiveOpts"
+                    "-Dvertx.disableMetrics=true"
+                    "-Dvertx.threadChecks=false"
+                    "-Dvertx.disableContextTimings=true"
+                    "-Dvertx.disableTCCL=true"
+                    "-Djdk.attach.allowAttachSelf"]
+                   :dependencies
+                   [[ch.qos.logback/logback-classic "1.2.3"]
+                    [criterium "0.4.5"]
                     ; [aleph "0.4.7-alpha5"]
                     [metosin/pohjavirta "0.0.1-alpha7"]
                     [com.clojure-goes-fast/clj-async-profiler "0.4.1"]]}})
