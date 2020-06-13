@@ -159,17 +159,13 @@
   (if body (.write ctx body (.voidPromise ctx)))
   (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))
 
-(let []
-  (defn ^DefaultHttpHeaders base-headers []
-    (doto (DefaultHttpHeaders. false)
-          (.add HttpHeaderNames/SERVER (str "iny/" version))
-          (.add HttpHeaderNames/CONTENT_TYPE "text/plain")))
-
+(let [base-headers (doto (DefaultHttpHeaders. false)
+                         (.add HttpHeaderNames/SERVER (str "iny/" version))
+                         (.add HttpHeaderNames/CONTENT_TYPE "text/plain"))]
   (defn headers-with-date
     []
-    (doto (.copy ^DefaultHttpHeaders (base-headers))
-          ; (.add HttpHeaderNames/DATE (date-header-value))
-          ))
+    (doto (.copy ^DefaultHttpHeaders base-headers)
+          (.add HttpHeaderNames/DATE (date-header-value))))
 
   (extend-protocol Headers
     nil
@@ -189,19 +185,15 @@
               (recur))))
         headers)))
 
-  (let []
-    (defn ^DefaultHttpResponse error-head
-      []
-      (doto (DefaultHttpResponse.
-             HttpVersion/HTTP_1_1
-             HttpResponseStatus/INTERNAL_SERVER_ERROR
-             ^HttpHeaders (headers-with-date))
-            (HttpUtil/setContentLength 0)))
-
+  (let [error-head (doto (DefaultHttpResponse.
+                          HttpVersion/HTTP_1_1
+                          HttpResponseStatus/INTERNAL_SERVER_ERROR
+                          ^HttpHeaders (headers-with-date))
+                         (HttpUtil/setContentLength 0))]
     (defn ^ChannelFuture respond-500
       [^ChannelHandlerContext ctx
        ^Throwable             ex]
-      (write-response ctx (error-head) nil)))
+      (write-response ctx error-head nil)))
 
   (defn ^ChannelFuture respond
     [^ChannelHandlerContext ctx
@@ -304,7 +296,7 @@
   (proxy [ChannelInitializer] []
     (initChannel [^SocketChannel ch]
       (let [pipeline (.pipeline ch)]
-        ; (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
+        (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
         (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
         (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
         (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
@@ -327,7 +319,7 @@
                          (.option ChannelOption/SO_BACKLOG (int 1024))
                          (.option ChannelOption/SO_REUSEADDR true)
                          (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
-                         ; (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
+                         (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
                          (.group ^MultithreadEventLoopGroup parent-group
                                  ^MultithreadEventLoopGroup child-group)
                          (.channel socket-chan)
@@ -335,8 +327,7 @@
                          (.childOption ChannelOption/SO_REUSEADDR true)
                          (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
                          (.childOption ChannelOption/TCP_NODELAY true)
-                         ; (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
-                         )
+                         (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true)))
               channel (-> boot (.bind port) .sync .channel)]
           (fn closer []
             (-> channel .close .sync)
