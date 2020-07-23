@@ -42,6 +42,9 @@
                     "-Dvertx.disableContextTimings=true"
                     "-Dvertx.disableTCCL=true"
                     "-Djdk.attach.allowAttachSelf"]
+                   :global-vars
+                   {*warn-on-reflection* true
+                    *unchecked-math* :warn-on-boxed}
                    :dependencies
                    [[ch.qos.logback/logback-classic "1.2.3"]
                     [criterium "0.4.5"]

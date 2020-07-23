@@ -4,8 +4,6 @@
             [iny.http :as http])
   (:gen-class))
 
-(set! *warn-on-reflection* true)
-
 (defn my-handler [{uri :uri}]
   {:status 200
    :body (json/write-value-as-bytes {:message (str "Hello from " uri)})

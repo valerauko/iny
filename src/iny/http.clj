@@ -77,7 +77,6 @@
             DefaultHttpResponse])
   (:gen-class))
 
-(set! *warn-on-reflection* true)
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
 (def version "0.1.0")
