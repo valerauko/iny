@@ -227,10 +227,10 @@
   [^ChannelHandlerContext ctx
    ^HttpRequest           req
    q-at]
-  :uri            (if (not (neg? q-at))
+  :uri            (if (not (neg? ^int q-at))
                     (.substring (.uri req) 0 q-at)
                     (.uri req))
-  :query-string   (if (not (neg? q-at))
+  :query-string   (if (not (neg? ^int q-at))
                     (.substring (.uri req) q-at))
   :headers        (.headers req)
   :request-method (request-method req)
