@@ -1,6 +1,7 @@
 (ns iny.http
   (:require [clojure.tools.logging :as log]
-            [potemkin :refer [def-derived-map]])
+            [potemkin :refer [def-derived-map]]
+            [iny.http2 :refer [h2c-upgrade]])
   (:import [clojure.lang
             PersistentArrayMap]
            [java.util
@@ -294,12 +295,14 @@
   [user-handler]
   (proxy [ChannelInitializer] []
     (initChannel [^SocketChannel ch]
+      ; (let [pipeline (.pipeline ch)]
+      ;   (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
+      ;   (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
+      ;   (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
+      ;   (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
+      ;   (.addLast pipeline "user-handler" (http-handler user-handler)))
       (let [pipeline (.pipeline ch)]
-        (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
-        (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
-        (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
-        (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
-        (.addLast pipeline "user-handler" (http-handler user-handler))))))
+        (.addLast pipeline "h2c-upgrade" (h2c-upgrade))))))
 
 (defn run
   [handler]
