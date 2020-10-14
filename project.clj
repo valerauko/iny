@@ -16,7 +16,8 @@
                   ]
                  [io.netty/netty-codec "4.1.50.Final"]
                  [io.netty/netty-handler "4.1.50.Final"]
-                 [io.netty/netty-codec-http "4.1.50.Final"]]
+                 [io.netty/netty-codec-http "4.1.50.Final"]
+                 [io.netty/netty-codec-http2 "4.1.50.Final"]]
 
   :repl-options {:init-ns iny.runner}
   :main ^:skip-aot iny.runner
