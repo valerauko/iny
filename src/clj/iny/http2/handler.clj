@@ -14,7 +14,8 @@
             HttpScheme
             HttpHeaderNames]
            [io.netty.handler.codec.http
-            HttpResponseStatus]
+            HttpResponseStatus
+            HttpServerUpgradeHandler$UpgradeEvent]
            [io.netty.handler.codec.http2
             Http2ConnectionHandler
             Http2FrameListener
@@ -75,7 +76,12 @@
     [decoder encoder initial-settings]
     (userEventTriggered
      [ctx event]
-     (when-let [request (.upgradeRequest event)]
+     ;; if an http1->http2 upgrade happened, pass the request
+     ;; on to onHeadersRead for actual processing
+     (when-let [request (and (instance? ;; only HSUH/UpgradeEvents have request
+                              HttpServerUpgradeHandler$UpgradeEvent
+                              event)
+                             (.upgradeRequest event))]
        (.onHeadersRead this ctx 1 (translate-headers request) 0 true))
      (proxy-super userEventTriggered ctx event))
     (exceptionCaught
