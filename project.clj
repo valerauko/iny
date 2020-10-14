@@ -19,6 +19,9 @@
                  [io.netty/netty-codec-http "4.1.50.Final"]
                  [io.netty/netty-codec-http2 "4.1.50.Final"]]
 
+  :source-paths ["src/clj"]
+  :java-source-paths ["src/java"]
+
   :repl-options {:init-ns iny.runner}
   :main ^:skip-aot iny.runner
 
