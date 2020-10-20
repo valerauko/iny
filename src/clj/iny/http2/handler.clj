@@ -67,7 +67,11 @@
   (let [headers (doto (DefaultHttp2Headers.)
                       (.status (.codeAsText HttpResponseStatus/OK)))]
     (.writeHeaders encoder ctx stream-id headers 0 false (.newPromise ctx))
-    (.writeData encoder ctx stream-id (->buffer "hello, world") 0 true (.newPromise ctx))))
+    (try
+      (.writeData encoder ctx stream-id (->buffer "hello, world") 0 true (.newPromise ctx))
+      (catch Throwable e
+        (log/error e)
+        (throw e)))))
 
 (defn ^Http2ConnectionHandler http2-handler
   [decoder encoder initial-settings]
