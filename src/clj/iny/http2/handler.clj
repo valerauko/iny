@@ -99,12 +99,16 @@
        (respond (.encoder this) ctx stream-id))
      (+ (.readableBytes data) padding))
     (onHeadersRead
-     ([ctx stream-id headers padding end-of-stream?]
-      (if end-of-stream?
-        (respond (.encoder this) ctx stream-id)
-        (log/info "onHeadersRead 6")))
-     ([ctx stream-id headers dependency weight exclusive? padding end-of-stream?]
-      (log/info "onHeadersRead 8")))
+     ; ([ctx stream-id headers padding end-of-stream?]
+     ;  (if end-of-stream?
+     ;    (respond (.encoder this) ctx stream-id)
+     ;    (log/info "onHeadersRead 6")))
+     ; ([ctx stream-id headers dependency weight exclusive? padding end-of-stream?]
+     ;  (log/info "onHeadersRead 8"))
+     ([ctx stream-id headers & others]
+      (log/info "onHeadersRead")
+      (when (last others)
+        (respond (.encoder this) ctx stream-id))))
     (onPriorityRead
      [ctx stream-id dependency weight exclusive?]
      (log/info "onPriorityRead"))
