@@ -94,7 +94,10 @@
      (.close ctx))
     (onDataRead
      [ctx stream-id data padding end-of-stream?]
-     (log/info "onDataRead"))
+     (log/info "onDataRead")
+     (when end-of-stream?
+       (respond (.encoder this) ctx stream-id))
+     (+ (.readableBytes data) padding))
     (onHeadersRead
      ([ctx stream-id headers padding end-of-stream?]
       (if end-of-stream?
