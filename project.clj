@@ -8,15 +8,19 @@
                   :exclusions [org.clojure/clojure]]
                  [potemkin "0.4.5"]
                  [metosin/jsonista "0.2.6"]
-                 [io.netty/netty-common "4.1.50.Final"]
-                 [io.netty/netty-buffer "4.1.50.Final"]
-                 [io.netty/netty-transport "4.1.50.Final"]
-                 [io.netty/netty-transport-native-epoll "4.1.50.Final"
+                 [io.netty/netty-common "4.1.53.Final"]
+                 [io.netty/netty-buffer "4.1.53.Final"]
+                 [io.netty/netty-transport "4.1.53.Final"]
+                 [io.netty/netty-transport-native-epoll "4.1.53.Final"
                   ; :classifier "linux-x86_64"
                   ]
-                 [io.netty/netty-codec "4.1.50.Final"]
-                 [io.netty/netty-handler "4.1.50.Final"]
-                 [io.netty/netty-codec-http "4.1.50.Final"]]
+                 [io.netty/netty-codec "4.1.53.Final"]
+                 [io.netty/netty-handler "4.1.53.Final"]
+                 [io.netty/netty-codec-http "4.1.53.Final"]
+                 [io.netty/netty-codec-http2 "4.1.53.Final"]]
+
+  :source-paths ["src/clj"]
+  :java-source-paths ["src/java"]
 
   :repl-options {:init-ns iny.runner}
   :main ^:skip-aot iny.runner
