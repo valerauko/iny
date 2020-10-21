@@ -25,6 +25,7 @@
             ByteBuffer]
            [io.netty.util
             AsciiString
+            ReferenceCountUtil
             ResourceLeakDetector
             ResourceLeakDetector$Level]
            [io.netty.util.concurrent
@@ -61,6 +62,7 @@
             FlushConsolidationHandler]
            [io.netty.handler.codec.http
             HttpUtil
+            HttpMessage
             HttpServerCodec
             HttpServerExpectContinueHandler
             HttpContent
@@ -75,7 +77,9 @@
             HttpHeaderNames
             DefaultHttpHeaders
             DefaultHttpContent
-            DefaultHttpResponse])
+            DefaultHttpResponse]
+           [io.netty.handler.codec.http2
+            CleartextHttp2ServerUpgradeHandler])
   (:gen-class))
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
@@ -291,18 +295,33 @@
       (userEventTriggered [_ ctx event])
       (channelWritabilityChanged [_ ctx]))))
 
+(defn http-fallback
+  [user-handler]
+  (reify
+    ChannelInboundHandler
+    (handlerAdded [_ _])
+    (handlerRemoved [_ _])
+    (exceptionCaught [_ _ _])
+    (channelRead
+     [this ctx msg]
+     (let [pipeline (.pipeline ctx)]
+       ;; removes the h2c-upgrade handler (no upgrade was attempted)
+       (.removeFirst pipeline)
+       (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
+       (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
+       (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
+       (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
+       (.addLast pipeline "user-handler" (http-handler user-handler))
+       (.remove pipeline this)
+       (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))))
+
 (defn server-pipeline
   [user-handler]
   (proxy [ChannelInitializer] []
     (initChannel [^SocketChannel ch]
-      ; (let [pipeline (.pipeline ch)]
-      ;   (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
-      ;   (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
-      ;   (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
-      ;   (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
-      ;   (.addLast pipeline "user-handler" (http-handler user-handler)))
       (let [pipeline (.pipeline ch)]
-        (.addLast pipeline "h2c-upgrade" (h2c-upgrade))))))
+        (.addLast pipeline "h2c-upgrade" (h2c-upgrade))
+        (.addLast pipeline "rewrite-pipeline" (http-fallback user-handler))))))
 
 (defn run
   [handler]

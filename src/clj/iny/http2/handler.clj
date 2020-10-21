@@ -12,12 +12,14 @@
            [io.netty.handler.codec.http
             HttpMethod
             HttpScheme
-            HttpHeaderNames]
+            HttpHeaderNames
+            FullHttpRequest]
            [io.netty.handler.codec.http
             HttpResponseStatus
             HttpServerUpgradeHandler$UpgradeEvent]
            [io.netty.handler.codec.http2
             Http2ConnectionHandler
+            Http2ConnectionEncoder
             Http2FrameListener
             Http2Headers
             DefaultHttp2Headers]))
@@ -52,7 +54,7 @@
         (->buffer ^bytes (.getBytes str) ctx)))))
 
 (defn ^Http2Headers translate-headers
-  [request]
+  [^FullHttpRequest request]
   (let [host (some-> request
                      (.headers)
                      (.get HttpHeaderNames/HOST))]
@@ -63,9 +65,10 @@
           (.authority host))))
 
 (defn respond
-  [encoder ctx stream-id]
+  [^Http2ConnectionEncoder encoder ^ChannelHandlerContext ctx stream-id]
   (let [headers (doto (DefaultHttp2Headers.)
-                      (.status (.codeAsText HttpResponseStatus/OK)))]
+                      (.status (.codeAsText ^HttpResponseStatus
+                                            HttpResponseStatus/OK)))]
     (.writeHeaders encoder ctx stream-id headers 0 false (.newPromise ctx))
     (try
       (.writeData encoder ctx stream-id (->buffer "hello, world") 0 true (.newPromise ctx))
@@ -85,30 +88,28 @@
      (when-let [request (and (instance? ;; only HSUH/UpgradeEvents have request
                               HttpServerUpgradeHandler$UpgradeEvent
                               event)
-                             (.upgradeRequest event))]
-       (.onHeadersRead this ctx 1 (translate-headers request) 0 true))
+                             (.upgradeRequest
+                              ^HttpServerUpgradeHandler$UpgradeEvent
+                              event))]
+       (.onHeadersRead ^Http2FrameListener this ctx 1 (translate-headers request) 0 true))
      (proxy-super userEventTriggered ctx event))
     (exceptionCaught
-     [ctx ^Throwable error]
+     [^ChannelHandlerContext ctx ^Throwable error]
      (log/error error)
      (.close ctx))
     (onDataRead
-     [ctx stream-id data padding end-of-stream?]
+     [ctx stream-id ^ByteBuf data padding end-of-stream?]
      ; (log/info "onDataRead")
      (when end-of-stream?
-       (respond (.encoder this) ctx stream-id))
-     (+ (.readableBytes data) padding))
+       (respond (.encoder ^Http2ConnectionHandler this) ctx stream-id))
+     (+ (.readableBytes data) ^long padding))
     (onHeadersRead
-     ; ([ctx stream-id headers padding end-of-stream?]
-     ;  (if end-of-stream?
-     ;    (respond (.encoder this) ctx stream-id)
-     ;    (log/info "onHeadersRead 6")))
-     ; ([ctx stream-id headers dependency weight exclusive? padding end-of-stream?]
-     ;  (log/info "onHeadersRead 8"))
-     ([ctx stream-id headers & others]
-      ; (log/info "onHeadersRead")
-      (when (last others)
-        (respond (.encoder this) ctx stream-id))))
+     ([ctx stream-id headers padding end-of-stream?]
+      (when end-of-stream?
+        (respond (.encoder ^Http2ConnectionHandler this) ctx stream-id)))
+     ([ctx stream-id headers dependency weight exclusive? padding end-of-stream?]
+      (when end-of-stream?
+        (respond (.encoder ^Http2ConnectionHandler this) ctx stream-id))))
     (onPriorityRead
      [ctx stream-id dependency weight exclusive?]
      (log/info "onPriorityRead"))

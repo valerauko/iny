@@ -16,7 +16,7 @@
             Http2ConnectionHandler
             Http2FrameListener]))
 
-(def handler-builder
+(def ^HandlerBuilder handler-builder
   (HandlerBuilder. http2-handler))
 
 (def upgrade-factory
@@ -31,7 +31,8 @@
   [source-codec]
   (HttpServerUpgradeHandler. source-codec upgrade-factory))
 
-(defn h2c-upgrade []
+(defn h2c-upgrade
+  []
   (let [source-codec (HttpServerCodec.)
         upgrade-handler (upgrade-handler source-codec)
         builder handler-builder
