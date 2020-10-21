@@ -71,9 +71,9 @@
   (let [headers (doto (DefaultHttp2Headers.)
                       (.status (.codeAsText ^HttpResponseStatus
                                             HttpResponseStatus/OK)))]
-    (.writeHeaders encoder ctx stream-id headers 0 false (.newPromise ctx))
+    (.writeHeaders encoder ctx stream-id headers 0 false (.voidPromise ctx))
     (try
-      (.writeData encoder ctx stream-id (->buffer "hello, world") 0 true (.newPromise ctx))
+      (.writeData encoder ctx stream-id (->buffer "hello, world") 0 true (.voidPromise ctx))
       (catch Throwable e
         (log/error e)
         (throw e)))))
