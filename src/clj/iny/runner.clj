@@ -1,7 +1,7 @@
 (ns iny.runner
   (:require ; [clj-async-profiler.core :as prof]
             [jsonista.core :as json]
-            [iny.http :as http])
+            [iny.server :as server])
   (:gen-class))
 
 (defn my-handler [{uri :uri}]
@@ -11,4 +11,4 @@
 
 (defn -main
   [& _]
-  (http/run my-handler))
+  (server/server my-handler))

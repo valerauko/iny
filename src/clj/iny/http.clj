@@ -25,45 +25,26 @@
             ByteBuffer]
            [io.netty.util
             AsciiString
-            ReferenceCountUtil
             ResourceLeakDetector
             ResourceLeakDetector$Level]
            [io.netty.util.concurrent
             FastThreadLocal]
            [java.nio.charset
             Charset]
-           [io.netty.bootstrap
-            ServerBootstrap]
            [io.netty.buffer
             ByteBuf
             Unpooled
-            PooledByteBufAllocator
             AdvancedLeakAwareByteBuf]
            [io.netty.channel
-            MultithreadEventLoopGroup
-            ChannelOption
-            ChannelInitializer
             ChannelFuture
             ChannelFutureListener
             ChannelHandlerContext
             ChannelHandler
             ChannelInboundHandler]
-           [io.netty.channel.nio
-            NioEventLoopGroup]
-           [io.netty.channel.epoll
-            Epoll
-            EpollEventLoopGroup
-            EpollServerSocketChannel]
-           [io.netty.channel.socket
-            SocketChannel]
-           [io.netty.channel.socket.nio
-            NioServerSocketChannel]
            [io.netty.handler.flush
             FlushConsolidationHandler]
            [io.netty.handler.codec.http
             HttpUtil
-            HttpMessage
-            HttpServerCodec
             HttpServerExpectContinueHandler
             HttpContent
             LastHttpContent
@@ -77,9 +58,7 @@
             HttpHeaderNames
             DefaultHttpHeaders
             DefaultHttpContent
-            DefaultHttpResponse]
-           [io.netty.handler.codec.http2
-            CleartextHttp2ServerUpgradeHandler])
+            DefaultHttpResponse])
   (:gen-class))
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
@@ -295,65 +274,10 @@
       (userEventTriggered [_ ctx event])
       (channelWritabilityChanged [_ ctx]))))
 
-(defn http-fallback
-  [user-handler]
-  (reify
-    ChannelInboundHandler
-    (handlerAdded [_ _])
-    (handlerRemoved [_ _])
-    (exceptionCaught [_ _ _])
-    (channelRead
-     [this ctx msg]
-     (let [pipeline (.pipeline ctx)]
-       ;; removes the h2c-upgrade handler (no upgrade was attempted)
-       (.removeFirst pipeline)
-       (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
-       (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
-       (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
-       (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
-       (.addLast pipeline "user-handler" (http-handler user-handler))
-       (.remove pipeline this)
-       (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))))
-
-(defn server-pipeline
-  [user-handler]
-  (proxy [ChannelInitializer] []
-    (initChannel [^SocketChannel ch]
-      (let [pipeline (.pipeline ch)]
-        (.addLast pipeline "h2c-upgrade" (h2c-upgrade))
-        (.addLast pipeline "rewrite-pipeline" (http-fallback user-handler))))))
-
-(defn run
-  [handler]
-  (let [cores (.availableProcessors (Runtime/getRuntime))
-        epoll? (Epoll/isAvailable)
-        socket-chan (if epoll? EpollServerSocketChannel NioServerSocketChannel)
-        parent-group (if epoll?
-                       (EpollEventLoopGroup. (* 2 cores))
-                       (NioEventLoopGroup. (* 2 cores)))
-        child-group (if epoll?
-                      (EpollEventLoopGroup. (* 3 cores))
-                      (NioEventLoopGroup. (* 3 cores)))
-        port 8080]
-    (try
-      (let [boot (doto (ServerBootstrap.)
-                       (.option ChannelOption/SO_BACKLOG (int 1024))
-                       (.option ChannelOption/SO_REUSEADDR true)
-                       (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
-                       (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
-                       (.group ^MultithreadEventLoopGroup parent-group
-                               ^MultithreadEventLoopGroup child-group)
-                       (.channel socket-chan)
-                       (.childHandler (server-pipeline handler))
-                       (.childOption ChannelOption/SO_REUSEADDR true)
-                       (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
-                       (.childOption ChannelOption/TCP_NODELAY true)
-                       (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true)))
-            channel (-> boot (.bind port) .sync .channel)]
-        (fn closer []
-          (-> channel .close .sync)
-          (.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
-          (.shutdownGracefully ^MultithreadEventLoopGroup child-group)))
-      (catch Exception e
-        @(.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
-        @(.shutdownGracefully ^MultithreadEventLoopGroup child-group)))))
+(defn build-http11-pipeline
+  [pipeline user-handler]
+  (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
+  (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
+  (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
+  (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
+  (.addLast pipeline "user-handler" (http-handler user-handler)))
