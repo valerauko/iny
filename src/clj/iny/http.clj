@@ -37,6 +37,7 @@
             AdvancedLeakAwareByteBuf]
            [io.netty.channel
             ChannelFuture
+            ChannelPipeline
             ChannelFutureListener
             ChannelHandlerContext
             ChannelHandler
@@ -58,8 +59,7 @@
             HttpHeaderNames
             DefaultHttpHeaders
             DefaultHttpContent
-            DefaultHttpResponse])
-  (:gen-class))
+            DefaultHttpResponse]))
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
@@ -275,7 +275,7 @@
       (channelWritabilityChanged [_ ctx]))))
 
 (defn build-http11-pipeline
-  [pipeline user-handler]
+  [^ChannelPipeline pipeline user-handler]
   (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
   (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
   (.addLast pipeline "http-encoder" (HttpResponseEncoder.))

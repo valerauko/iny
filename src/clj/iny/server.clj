@@ -11,6 +11,7 @@
             MultithreadEventLoopGroup
             ChannelOption
             ChannelInitializer
+            ChannelHandler
             ChannelInboundHandler]
            [io.netty.channel.epoll
             Epoll
@@ -44,8 +45,8 @@
   (proxy [ChannelInitializer] []
     (initChannel [^SocketChannel ch]
       (let [pipeline (.pipeline ch)]
-        (.addLast pipeline "h2c-upgrade" (http2/h2c-upgrade))
-        (.addLast pipeline "rewrite-pipeline" (http-fallback user-handler))))))
+        (.addLast pipeline "h2c-upgrade" ^ChannelHandler (http2/h2c-upgrade))
+        (.addLast pipeline "rewrite-pipeline" ^ChannelHandler (http-fallback user-handler))))))
 
 (defn server
   [handler]
