@@ -24,7 +24,8 @@
             Http2ConnectionEncoder
             Http2FrameListener
             Http2Headers
-            DefaultHttp2Headers]))
+            DefaultHttp2Headers
+            DefaultHttp2Connection]))
 
 (defprotocol WritableBody
   (^ByteBuf ->buffer [_] [_ _]))
@@ -93,8 +94,17 @@
                              (.upgradeRequest
                               ^HttpServerUpgradeHandler$UpgradeEvent
                               event))]
-       (.onHeadersRead ^Http2FrameListener this ctx 1 (translate-headers request) 0 true))
-     (proxy-super userEventTriggered ctx event))
+       (when-let [connection (some-> ^Http2ConnectionHandler this .decoder .connection)]
+         ;; while stream#1 is the one normally used for upgrade requests,
+         ;; if the connection is long-lived stream#1 might be gone already.
+         ;; if it's no longer around, use the next valid streamId
+         (let [stream-id (if (.stream connection 1)
+                           1
+                           (-> ^DefaultHttp2Connection connection
+                               .local
+                               .incrementAndGetNextStreamId))]
+           (.onHeadersRead ^Http2FrameListener this ctx stream-id
+                           (translate-headers request) 0 true)))))
     (exceptionCaught
      [^ChannelHandlerContext ctx ^Throwable error]
      (when-not (instance? IOException error)
