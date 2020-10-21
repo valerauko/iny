@@ -2,6 +2,8 @@
   (:require [clojure.tools.logging :as log])
   (:import [java.nio.charset
             Charset]
+           [java.io
+            IOException]
            [io.netty.buffer
             ByteBuf
             Unpooled
@@ -95,7 +97,8 @@
      (proxy-super userEventTriggered ctx event))
     (exceptionCaught
      [^ChannelHandlerContext ctx ^Throwable error]
-     (log/error error)
+     (when-not (instance? IOException error)
+       (log/error error))
      (.close ctx))
     (onDataRead
      [ctx stream-id ^ByteBuf data padding end-of-stream?]

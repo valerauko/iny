@@ -23,7 +23,6 @@
   (reify
     HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [_ proto]
-      (log/info (str "newUpgradeCodec " proto))
       (let [handler (.build handler-builder)]
         (Http2ServerUpgradeCodec. "http2-handler" handler)))))
 
