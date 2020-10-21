@@ -99,7 +99,6 @@
      (.close ctx))
     (onDataRead
      [ctx stream-id ^ByteBuf data padding end-of-stream?]
-     ; (log/info "onDataRead")
      (when end-of-stream?
        (respond (.encoder ^Http2ConnectionHandler this) ctx stream-id))
      (+ (.readableBytes data) ^long padding))
@@ -110,33 +109,19 @@
      ([ctx stream-id headers dependency weight exclusive? padding end-of-stream?]
       (when end-of-stream?
         (respond (.encoder ^Http2ConnectionHandler this) ctx stream-id))))
-    (onPriorityRead
-     [ctx stream-id dependency weight exclusive?]
-     (log/info "onPriorityRead"))
+    (onPriorityRead [ctx stream-id dependency weight exclusive?])
     (onRstStreamRead
      [ctx stream-id error-code]
      (log/info "onRstStreamRead"))
-    (onSettingsRead
-     [ctx settings]
-     (log/info (str settings)))
-    (onSettingsAckRead
-     [ctx]
-     (log/info "onSettingsAckRead"))
-    (onPingRead
-     [ctx data]
-     (log/info "onPingRead"))
-    (onPingAckRead
-     [ctx data]
-     (log/info "onPingAckRead"))
+    (onSettingsRead [ctx settings])
+    (onSettingsAckRead [ctx])
+    (onPingRead [ctx data])
+    (onPingAckRead [ctx data])
     (onPushPromiseRead
      [ctx stream-id promised-id headers padding]
      (log/info "onPushPromiseRead"))
     (onGoAwayRead
      [ctx last-stream-id error-code debug-data]
      (log/info "onGoAwayRead"))
-    (onWindowUpdateRead
-     [ctx stream-id window-size-increment]
-     (log/info "onWindowUpdateRead"))
-    (onUnknownFrame
-     [ctx frame-type stream-id flags payload]
-     (log/info "onUnknownFrame"))))
+    (onWindowUpdateRead [ctx stream-id window-size-increment])
+    (onUnknownFrame [ctx frame-type stream-id flags payload])))
