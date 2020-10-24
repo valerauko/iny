@@ -1,5 +1,6 @@
 (ns iny.server
-  (:require [iny.http :as http]
+  (:require [clojure.tools.logging :as log]
+            [iny.http :as http]
             [iny.http2 :as http2])
   (:import [io.netty.util
             ReferenceCountUtil]
@@ -22,7 +23,12 @@
            [io.netty.channel.socket
             SocketChannel]
            [io.netty.channel.socket.nio
-            NioServerSocketChannel]))
+            NioServerSocketChannel]
+           [io.netty.handler.flush
+            FlushConsolidationHandler]
+           [io.netty.handler.codec.http
+            HttpServerCodec
+            HttpServerUpgradeHandler]))
 
 (defn http-fallback
   [user-handler]
@@ -30,23 +36,33 @@
     ChannelInboundHandler
     (handlerAdded [_ _])
     (handlerRemoved [_ _])
-    (exceptionCaught [_ _ _])
+    (exceptionCaught [_ ctx ex]
+      (log/error ex))
+    (channelRegistered [_ ctx])
+    (channelUnregistered [_ ctx])
+    (channelActive [_ ctx])
+    (channelInactive [_ ctx])
     (channelRead
      [this ctx msg]
      (let [pipeline (.pipeline ctx)]
        ;; removes the h2c-upgrade handler (no upgrade was attempted)
-       (.removeFirst pipeline)
+       (.remove pipeline HttpServerCodec)
+       (.remove pipeline HttpServerUpgradeHandler)
        (http/build-http11-pipeline pipeline user-handler)
        (.remove pipeline this)
-       (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))))
+       (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))
+    (channelReadComplete [_ ctx])
+    (userEventTriggered [_ ctx event])
+    (channelWritabilityChanged [_ ctx])))
 
 (defn server-pipeline
   [user-handler]
   (proxy [ChannelInitializer] []
     (initChannel [^SocketChannel ch]
       (let [pipeline (.pipeline ch)]
-        (.addLast pipeline "h2c-upgrade" ^ChannelHandler (http2/h2c-upgrade))
-        (.addLast pipeline "rewrite-pipeline" ^ChannelHandler (http-fallback user-handler))))))
+        (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
+        (.addLast pipeline "h2c-upgrade" ^ChannelHandler (http2/h2c-upgrade user-handler))
+        (.addLast pipeline "http-fallback" ^ChannelHandler (http-fallback user-handler))))))
 
 (defn server
   [handler]
