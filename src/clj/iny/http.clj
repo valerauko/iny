@@ -1,7 +1,6 @@
 (ns iny.http
   (:require [clojure.tools.logging :as log]
-            [potemkin :refer [def-derived-map]]
-            [iny.http2 :refer [h2c-upgrade]])
+            [potemkin :refer [def-derived-map]])
   (:import [clojure.lang
             PersistentArrayMap]
            [java.util
@@ -276,7 +275,6 @@
 
 (defn build-http11-pipeline
   [^ChannelPipeline pipeline user-handler]
-  (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
   (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
   (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
   (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))

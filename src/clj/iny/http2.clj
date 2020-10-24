@@ -1,42 +1,116 @@
 (ns iny.http2
   (:require [clojure.tools.logging :as log]
-            [iny.http2.handler :refer [http2-handler]])
-  (:import [iny.http2
-            HandlerBuilder]
+            [iny.http :refer [->buffer]])
+  (:import [io.netty.util
+            AsciiString]
+           [io.netty.channel
+            ChannelFuture
+            ChannelFutureListener
+            ChannelHandlerContext
+            ChannelHandler
+            ChannelInboundHandler]
            [io.netty.handler.codec.http
             HttpServerCodec
             HttpServerUpgradeHandler
-            HttpServerUpgradeHandler$UpgradeCodecFactory]
+            HttpServerUpgradeHandler$UpgradeCodecFactory
+            HttpResponseStatus
+            HttpRequest]
            [io.netty.handler.codec.http2
+            Http2FrameCodecBuilder
+            Http2CodecUtil
             DefaultHttp2Connection
             CleartextHttp2ServerUpgradeHandler
             Http2ServerUpgradeCodec
             AbstractHttp2ConnectionHandlerBuilder
             Http2ConnectionHandlerBuilder
             Http2ConnectionHandler
-            Http2FrameListener]))
+            Http2FrameListener
+            Http2FrameCodec
+            Http2HeadersFrame
+            Http2DataFrame
+            DefaultHttp2Headers
+            DefaultHttp2HeadersFrame
+            DefaultHttp2DataFrame]))
 
-(def ^HandlerBuilder handler-builder
-  (HandlerBuilder. http2-handler))
+(defn ^Http2FrameCodec codec
+  []
+  (.build (Http2FrameCodecBuilder/forServer)))
 
-(def upgrade-factory
+(defn listener
+  []
+  (proxy
+    [ChannelFutureListener] []
+    (operationComplete [^ChannelFuture ftr]
+      (when-let [cause (.cause ftr)]
+        (log/error cause)))))
+
+(defn http2-handler
+  [user-handler]
+  (reify
+    ChannelInboundHandler
+
+    (handlerAdded
+      [_ ctx]
+      (let [pipeline (.pipeline ctx)]
+        (when-not (.get pipeline Http2FrameCodec)
+          (.addBefore pipeline (.name ctx) nil (codec)))))
+    (handlerRemoved [_ ctx])
+    (exceptionCaught
+      [_ ctx ex]
+      (log/warn ex)
+      (.close ctx))
+    (channelRegistered [_ ctx])
+    (channelUnregistered [_ ctx])
+    (channelActive [_ ctx])
+    (channelInactive [_ ctx])
+    (channelRead [_ ctx msg]
+      (cond
+        (instance? Http2HeadersFrame msg)
+          (let [stream (.stream ^Http2HeadersFrame msg)]
+            (.write ctx
+                    (doto (DefaultHttp2HeadersFrame.
+                           (doto (DefaultHttp2Headers.)
+                                 (.status (.codeAsText ^HttpResponseStatus
+                                                       HttpResponseStatus/OK))))
+                          (.stream stream)))
+            (.writeAndFlush ctx
+                            (doto (DefaultHttp2DataFrame.
+                                   (->buffer "hello, world")
+                                   true)
+                                  (.stream stream))))
+        (instance? Http2DataFrame msg)
+          (log/info "HAAA")
+        ; (instance? Http2SettingsFrame msg)
+        ;   ,,,
+        ; (instance? Http2SettingsAckFrame msg)
+        ;   ,,,
+        :else
+          (log/info (class msg))
+        ;   (.fireChannelRead ctx msg)
+        ))
+    (channelReadComplete [_ ctx])
+    (userEventTriggered [_ ctx event])
+    (channelWritabilityChanged [_ ctx])))
+
+(defn upgrade-factory
+  [handler]
   (reify
     HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [_ proto]
-      (let [handler (.build handler-builder)]
-        (Http2ServerUpgradeCodec. "http2-handler" handler)))))
-
-(defn upgrade-handler
-  [source-codec]
-  (HttpServerUpgradeHandler. source-codec upgrade-factory))
+      (when (AsciiString/contentEquals
+             Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME
+             proto)
+        (Http2ServerUpgradeCodec.
+         (codec)
+         ^"[Lio.netty.channel.ChannelHandler;"
+         (into-array ChannelHandler [handler]))))))
 
 (defn h2c-upgrade
-  []
-  (let [source-codec (HttpServerCodec.)
-        upgrade-handler (upgrade-handler source-codec)
-        builder handler-builder
-        handler (.build builder)]
+  [user-handler]
+  (let [codec (HttpServerCodec.)
+        handler (http2-handler user-handler)
+        factory (upgrade-factory handler)]
     (CleartextHttp2ServerUpgradeHandler.
-     source-codec
-     upgrade-handler
+     codec
+     (HttpServerUpgradeHandler. codec factory)
      handler)))
