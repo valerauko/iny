@@ -1,27 +1,11 @@
-(ns iny.http.conversion
+(ns iny.http.body
   (:import [java.nio.charset
             Charset]
            [io.netty.channel
             ChannelHandlerContext]
            [io.netty.buffer
             ByteBuf
-            Unpooled]
-           [io.netty.handler.codec.http
-            HttpResponseStatus]))
-
-(defprotocol ResponseStatus
-  (^HttpResponseStatus ->status [_]))
-
-(extend-protocol ResponseStatus
-  nil
-  (->status [_] HttpResponseStatus/OK)
-
-  HttpResponseStatus
-  (->status [status] status)
-
-  Integer
-  Long
-  (->status [number] (HttpResponseStatus/valueOf number)))
+            Unpooled]))
 
 (defprotocol WritableBody
   (^ByteBuf ->buffer [_] [_ _]))

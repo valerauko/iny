@@ -1,6 +1,7 @@
 (ns iny.http2.handler
   (:require [clojure.tools.logging :as log]
-            [iny.http.conversion :refer [->buffer]])
+            [iny.http.status :refer [->status]]
+            [iny.http.body :refer [->buffer]])
   (:import [io.netty.channel
             ChannelInboundHandler]
            [io.netty.handler.codec.http
