@@ -1,6 +1,8 @@
 (ns iny.http.handler
   (:require [clojure.tools.logging :as log]
             [iny.meta :refer [version]]
+            [iny.http.date :refer [schedule-date-value-update
+                                   date-header-value]]
             [iny.http.conversion :refer [->buffer ->status]]
             [potemkin :refer [def-derived-map]])
   (:import [clojure.lang
@@ -63,72 +65,6 @@
             DefaultHttpResponse]))
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
-
-(defonce ^FastThreadLocal date-format (FastThreadLocal.))
-(defonce ^FastThreadLocal date-value (FastThreadLocal.))
-
-(defmacro ref-get-or-set [^FastThreadLocal ftl or-value]
-  `(if-let [^AtomicReference ref# (.get ~ftl)]
-     (.get ref#)
-     (let [new-ref# (AtomicReference. ~or-value)]
-       (.set ~ftl new-ref#)
-       (.get new-ref#))))
-
-(defn ^DateFormat header-date-format
-  "SimpleDateFormat isn't thread-safe so it has to be made for each worker"
-  []
-  (doto (SimpleDateFormat. "EEE, dd MMM yyyy HH:mm:ss z" Locale/ENGLISH)
-        (.setTimeZone (TimeZone/getTimeZone "GMT"))))
-
-(defn formatted-header-date []
-  (let [^DateFormat format (ref-get-or-set date-format (header-date-format))]
-    (AsciiString. (.format format (Date.)))))
-
-(defn ^CharSequence date-header-value []
-  (ref-get-or-set date-value (formatted-header-date)))
-
-(defprotocol WritableBody
-  (^ByteBuf ->buffer [_] [_ _]))
-
-(let [charset (Charset/forName "UTF-8")]
-  (extend-protocol WritableBody
-    (Class/forName "[B")
-    (->buffer
-      ([b]
-        (Unpooled/copiedBuffer ^bytes b))
-      ([b ctx]
-        (doto (-> ^ChannelHandlerContext ctx
-                  (.alloc)
-                  (.ioBuffer (alength ^bytes b)))
-              (.writeBytes ^bytes b))))
-
-    nil
-    (->buffer
-      ([_]
-        Unpooled/EMPTY_BUFFER)
-      ([_ _]
-        Unpooled/EMPTY_BUFFER))
-
-    String
-    (->buffer
-      ([str]
-        (Unpooled/copiedBuffer ^String str charset))
-      ([str ctx]
-        (->buffer ^bytes (.getBytes str) ctx)))))
-
-(defprotocol ResponseStatus
-  (^HttpResponseStatus ->status [_]))
-
-(extend-protocol ResponseStatus
-  nil
-  (->status [_] HttpResponseStatus/OK)
-
-  HttpResponseStatus
-  (->status [status] status)
-
-  Integer
-  Long
-  (->status [number] (HttpResponseStatus/valueOf number)))
 
 (defprotocol Headers
   (^HttpHeaders ->headers [_]))
@@ -240,15 +176,7 @@
         (when-not (instance? IOException ex)
           (respond-500 ctx ex)))
       (channelRegistered [_ ctx]
-        (let [ref (AtomicReference. (formatted-header-date))]
-          ; header date is accurate to seconds
-          ; so have it update every second
-          (.set date-value ref)
-          (.scheduleAtFixedRate (.executor ctx)
-            #(.set ref (formatted-header-date))
-            1000
-            1000
-            TimeUnit/MILLISECONDS)))
+        (schedule-date-value-update ctx))
       (channelUnregistered [_ ctx])
       (channelActive [_ ctx])
       (channelInactive [_ ctx])
