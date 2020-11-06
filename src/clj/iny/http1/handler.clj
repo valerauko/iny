@@ -1,9 +1,10 @@
-(ns iny.http.handler
+(ns iny.http1.handler
   (:require [clojure.tools.logging :as log]
             [iny.meta :refer [version]]
             [iny.http.date :refer [schedule-date-value-update
                                    date-header-value]]
-            [iny.http.conversion :refer [->buffer ->status]]
+            [iny.http.status :refer [->status]]
+            [iny.http.body :refer [->buffer]]
             [potemkin :refer [def-derived-map]])
   (:import [clojure.lang
             PersistentArrayMap]

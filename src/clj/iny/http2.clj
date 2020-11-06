@@ -1,6 +1,6 @@
 (ns iny.http2
   (:require [clojure.tools.logging :as log]
-            [iny.http :as http]
+            [iny.http1 :as http1]
             [iny.http2.handler :refer [http2-handler]])
   (:import [io.netty.util
             AsciiString
@@ -85,4 +85,4 @@
   (.addLast
    pipeline
    "http-fallback"
-   (http-fallback http/server-pipeline user-handler)))
+   (http-fallback http1/server-pipeline user-handler)))
