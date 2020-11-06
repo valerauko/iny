@@ -72,22 +72,18 @@
                            (doto (DefaultHttp2Headers.)
                                  (.status (.codeAsText ^HttpResponseStatus
                                                        HttpResponseStatus/OK))))
-                          (.stream stream)))
+                          (.stream stream))
+                    (.voidPromise ctx))
             (.writeAndFlush ctx
                             (doto (DefaultHttp2DataFrame.
                                    (->buffer "hello, world")
                                    true)
-                                  (.stream stream))))
-        (instance? Http2DataFrame msg)
-          (log/info "HAAA")
-        ; (instance? Http2SettingsFrame msg)
-        ;   ,,,
-        ; (instance? Http2SettingsAckFrame msg)
+                                  (.stream stream))
+                            (.voidPromise ctx)))
+        ; (instance? Http2DataFrame msg)
         ;   ,,,
         :else
-          (log/info (class msg))
-        ;   (.fireChannelRead ctx msg)
-        ))
+          (log/info (class msg))))
     (channelReadComplete [_ ctx])
     (userEventTriggered [_ ctx event])
     (channelWritabilityChanged [_ ctx])))
