@@ -5,12 +5,16 @@
             Locale]
            [java.text
             SimpleDateFormat]
+           [java.util.concurrent
+            TimeUnit]
            [java.util.concurrent.atomic
             AtomicReference]
            [io.netty.util
             AsciiString]
            [io.netty.util.concurrent
-            FastThreadLocal]))
+            FastThreadLocal]
+           [io.netty.channel
+            ChannelHandlerContext]))
 
 (defonce ^FastThreadLocal date-format (FastThreadLocal.))
 (defonce ^FastThreadLocal date-value (FastThreadLocal.))
