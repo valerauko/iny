@@ -166,14 +166,14 @@
               (recur))))
         headers)))
 
-  (let [error-head (doto (DefaultHttpResponse.
-                          HttpVersion/HTTP_1_1
-                          HttpResponseStatus/INTERNAL_SERVER_ERROR
-                          ^HttpHeaders (headers-with-date))
-                         (HttpUtil/setContentLength 0))]
-    (defn ^ChannelFuture respond-500
-      [^ChannelHandlerContext ctx
-       ^Throwable             ex]
+  (defn ^ChannelFuture respond-500
+    [^ChannelHandlerContext ctx
+     ^Throwable             ex]
+    (let [error-head (doto (DefaultHttpResponse.
+                            HttpVersion/HTTP_1_1
+                            HttpResponseStatus/INTERNAL_SERVER_ERROR
+                            ^HttpHeaders (headers-with-date))
+                           (HttpUtil/setContentLength 0))]
       (write-response ctx error-head nil)))
 
   (defn ^ChannelFuture respond
