@@ -5,6 +5,7 @@
                                    date-header-value]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
+            [iny.http1.headers :refer [->headers]]
             [potemkin :refer [def-derived-map]])
   (:import [clojure.lang
             PersistentArrayMap]
@@ -67,9 +68,6 @@
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
-(defprotocol Headers
-  (^HttpHeaders ->headers [_]))
-
 (defn ^ChannelFuture write-response
   [^ChannelHandlerContext ctx
    ^HttpResponse          head
@@ -78,55 +76,29 @@
   (if body (.write ctx body (.voidPromise ctx)))
   (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))
 
-(let [base-headers (doto (DefaultHttpHeaders. false)
-                         (.add HttpHeaderNames/SERVER (str "iny/" version))
-                         (.add HttpHeaderNames/CONTENT_TYPE "text/plain"))]
-  (defn headers-with-date
-    []
-    (doto (.copy ^DefaultHttpHeaders base-headers)
-          (.add HttpHeaderNames/DATE (date-header-value))))
+(defn ^ChannelFuture respond-500
+  [^ChannelHandlerContext ctx
+   ^Throwable             ex]
+  (let [error-head (doto (DefaultHttpResponse.
+                          HttpVersion/HTTP_1_1
+                          HttpResponseStatus/INTERNAL_SERVER_ERROR
+                          ^HttpHeaders (headers-with-date))
+                         (HttpUtil/setContentLength 0))]
+    (write-response ctx error-head nil)))
 
-  (extend-protocol Headers
-    nil
-    (->headers [_]
-      (headers-with-date))
-
-    PersistentArrayMap
-    (->headers [^Iterable header-map]
-      (let [headers ^HttpHeaders (headers-with-date)
-            i (.iterator header-map)]
-        (loop []
-          (if (.hasNext i)
-            (let [elem ^Map$Entry (.next i)]
-              (.set headers
-                    (-> elem .getKey .toString .toLowerCase)
-                    (.getValue elem))
-              (recur))))
-        headers)))
-
-  (defn ^ChannelFuture respond-500
-    [^ChannelHandlerContext ctx
-     ^Throwable             ex]
-    (let [error-head (doto (DefaultHttpResponse.
-                            HttpVersion/HTTP_1_1
-                            HttpResponseStatus/INTERNAL_SERVER_ERROR
-                            ^HttpHeaders (headers-with-date))
-                           (HttpUtil/setContentLength 0))]
-      (write-response ctx error-head nil)))
-
-  (defn ^ChannelFuture respond
-    [^ChannelHandlerContext ctx
-     {:keys [body headers status]}]
-    (let [status (->status status)
-          buffer (->buffer body ctx)
-          headers (->headers headers)
-          response (DefaultHttpResponse.
-                    HttpVersion/HTTP_1_1
-                    status
-                    headers)
-          response-body (DefaultHttpContent. buffer)]
-      (HttpUtil/setContentLength response (.readableBytes buffer))
-      (write-response ctx response response-body))))
+(defn ^ChannelFuture respond
+  [^ChannelHandlerContext ctx
+   {:keys [body headers status]}]
+  (let [status (->status status)
+        buffer (->buffer body ctx)
+        headers (->headers headers)
+        response (DefaultHttpResponse.
+                  HttpVersion/HTTP_1_1
+                  status
+                  headers)
+        response-body (DefaultHttpContent. buffer)]
+    (HttpUtil/setContentLength response (.readableBytes buffer))
+    (write-response ctx response response-body)))
 
 (let [methods (-> {"OPTIONS" :options
                    "GET" :get
