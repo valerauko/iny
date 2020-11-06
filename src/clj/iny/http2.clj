@@ -1,84 +1,57 @@
 (ns iny.http2
   (:require [clojure.tools.logging :as log]
-            [iny.http :refer [->buffer]])
+            [iny.http :as http]
+            [iny.http2.handler :refer [http2-handler]])
   (:import [io.netty.util
-            AsciiString]
+            AsciiString
+            ReferenceCountUtil]
            [io.netty.channel
-            ChannelFuture
-            ChannelFutureListener
-            ChannelHandlerContext
             ChannelHandler
-            ChannelInboundHandler]
+            ChannelInboundHandler
+            ChannelInitializer
+            ChannelPipeline]
+           [io.netty.channel.socket
+            SocketChannel]
            [io.netty.handler.codec.http
             HttpServerCodec
             HttpServerUpgradeHandler
-            HttpServerUpgradeHandler$UpgradeCodecFactory
-            HttpResponseStatus
-            HttpRequest]
+            HttpServerUpgradeHandler$UpgradeCodecFactory]
            [io.netty.handler.codec.http2
             Http2FrameCodecBuilder
             Http2CodecUtil
-            DefaultHttp2Connection
             CleartextHttp2ServerUpgradeHandler
             Http2ServerUpgradeCodec
-            AbstractHttp2ConnectionHandlerBuilder
-            Http2ConnectionHandlerBuilder
-            Http2ConnectionHandler
-            Http2FrameListener
-            Http2FrameCodec
-            Http2HeadersFrame
-            Http2DataFrame
-            DefaultHttp2Headers
-            DefaultHttp2HeadersFrame
-            DefaultHttp2DataFrame]))
+            Http2FrameCodec]))
 
-(defn ^Http2FrameCodec codec
-  []
-  (.build (Http2FrameCodecBuilder/forServer)))
-
-(defn http2-handler
-  [user-handler]
+(defn ^ChannelHandler http-fallback
+  [build-http-pipeline user-handler]
   (reify
     ChannelInboundHandler
-
-    (handlerAdded
-      [_ ctx]
-      (let [pipeline (.pipeline ctx)]
-        (when-not (.get pipeline Http2FrameCodec)
-          (.addBefore pipeline (.name ctx) nil (codec)))))
-    (handlerRemoved [_ ctx])
+    (handlerAdded [_ _])
+    (handlerRemoved [_ _])
     (exceptionCaught
-      [_ ctx ex]
-      (log/warn ex)
-      (.close ctx))
+     [_ ctx ex]
+     (log/error ex))
     (channelRegistered [_ ctx])
     (channelUnregistered [_ ctx])
     (channelActive [_ ctx])
     (channelInactive [_ ctx])
-    (channelRead [_ ctx msg]
-      (cond
-        (instance? Http2HeadersFrame msg)
-          (let [stream (.stream ^Http2HeadersFrame msg)]
-            (.write ctx
-                    (doto (DefaultHttp2HeadersFrame.
-                           (doto (DefaultHttp2Headers.)
-                                 (.status (.codeAsText ^HttpResponseStatus
-                                                       HttpResponseStatus/OK))))
-                          (.stream stream))
-                    (.voidPromise ctx))
-            (.writeAndFlush ctx
-                            (doto (DefaultHttp2DataFrame.
-                                   (->buffer "hello, world")
-                                   true)
-                                  (.stream stream))
-                            (.voidPromise ctx)))
-        ; (instance? Http2DataFrame msg)
-        ;   ,,,
-        :else
-          (log/info (class msg))))
+    (channelRead
+     [this ctx msg]
+     (let [pipeline (.pipeline ctx)]
+       ;; removes the h2c-upgrade handler (no upgrade was attempted)
+       (.remove pipeline HttpServerCodec)
+       (.remove pipeline HttpServerUpgradeHandler)
+       (build-http-pipeline pipeline user-handler)
+       (.remove pipeline this)
+       (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))
     (channelReadComplete [_ ctx])
     (userEventTriggered [_ ctx event])
     (channelWritabilityChanged [_ ctx])))
+
+(defn ^Http2FrameCodec codec
+  []
+  (.build (Http2FrameCodecBuilder/forServer)))
 
 (defn upgrade-factory
   [handler]
@@ -93,12 +66,23 @@
          ^"[Lio.netty.channel.ChannelHandler;"
          (into-array ChannelHandler [handler]))))))
 
-(defn h2c-upgrade
+(defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
   [user-handler]
-  (let [codec (HttpServerCodec.)
-        handler (http2-handler user-handler)
+  (let [http-codec (HttpServerCodec.)
+        handler (http2-handler user-handler (codec))
         factory (upgrade-factory handler)]
     (CleartextHttp2ServerUpgradeHandler.
-     codec
-     (HttpServerUpgradeHandler. codec factory)
+     http-codec
+     (HttpServerUpgradeHandler. http-codec factory)
      handler)))
+
+(defn server-pipeline
+  [^ChannelPipeline pipeline user-handler]
+  (.addLast
+   pipeline
+   "h2c-upgrade"
+   (h2c-upgrade user-handler))
+  (.addLast
+   pipeline
+   "http-fallback"
+   (http-fallback http/server-pipeline user-handler)))
