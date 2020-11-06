@@ -263,11 +263,10 @@
                   (.addListener ftr ChannelFutureListener/CLOSE))))
           ; (instance? LastHttpContent msg)
           ;   nil
-          (instance? HttpContent msg)
-            nil
+          ; (instance? HttpContent msg)
+          ;   nil
           :else
-            (.fireChannelRead ctx msg)
-         ))
+            (log/info (class msg))))
       (channelReadComplete [_ ctx])
       (userEventTriggered [_ ctx event])
       (channelWritabilityChanged [_ ctx]))))
