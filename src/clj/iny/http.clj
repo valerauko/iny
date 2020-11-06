@@ -1,5 +1,6 @@
 (ns iny.http
   (:require [clojure.tools.logging :as log]
+            [iny.meta :refer [version]]
             [potemkin :refer [def-derived-map]])
   (:import [clojure.lang
             PersistentArrayMap]
@@ -61,8 +62,6 @@
             DefaultHttpResponse]))
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
-
-(def version "0.1.0")
 
 (defonce ^FastThreadLocal date-format (FastThreadLocal.))
 (defonce ^FastThreadLocal date-value (FastThreadLocal.))
