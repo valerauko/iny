@@ -66,15 +66,17 @@
 
 (defn server
   [handler]
-  (let [cores (.availableProcessors (Runtime/getRuntime))
+  (let [cores (- (.availableProcessors (Runtime/getRuntime)) 3)
+        parent-threads (inc (int (Math/floor (/ cores 3.0))))
+        child-threads (- (+ 2 cores) parent-threads)
         epoll? (Epoll/isAvailable)
         socket-chan (if epoll? EpollServerSocketChannel NioServerSocketChannel)
         parent-group (if epoll?
-                       (EpollEventLoopGroup. (* 2 cores))
-                       (NioEventLoopGroup. (* 2 cores)))
+                       (EpollEventLoopGroup. parent-threads)
+                       (NioEventLoopGroup. parent-threads))
         child-group (if epoll?
-                      (EpollEventLoopGroup. (* 3 cores))
-                      (NioEventLoopGroup. (* 3 cores)))
+                      (EpollEventLoopGroup. child-threads)
+                      (NioEventLoopGroup. child-threads))
         port 8080]
     (try
       (let [boot (doto (ServerBootstrap.)
