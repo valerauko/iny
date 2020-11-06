@@ -261,12 +261,13 @@
                              (respond ctx))]
                 (when-not keep-alive?
                   (.addListener ftr ChannelFutureListener/CLOSE))))
-          (instance? LastHttpContent msg)
-            nil
-          (instance? HttpContent msg)
-            nil
-          :else
-            (log/info (class msg))))
+          ; (instance? LastHttpContent msg)
+          ;   nil
+          ; (instance? HttpContent msg)
+          ;   nil
+          ; :else
+          ;   (log/info (class msg))
+          ))
       (channelReadComplete [_ ctx])
       (userEventTriggered [_ ctx event])
       (channelWritabilityChanged [_ ctx]))))

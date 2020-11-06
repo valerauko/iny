@@ -54,8 +54,9 @@
                             (.voidPromise ctx)))
         ; (instance? Http2DataFrame msg)
         ;   ,,,
-        :else
-          (log/info (class msg))))
+        ; :else
+        ;   (log/info (class msg))
+        ))
     (channelReadComplete [_ ctx])
     (userEventTriggered [_ ctx event])
     (channelWritabilityChanged [_ ctx])))
