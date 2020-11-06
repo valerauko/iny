@@ -1,6 +1,7 @@
 (ns iny.http.handler
   (:require [clojure.tools.logging :as log]
             [iny.meta :refer [version]]
+            [iny.http.conversion :refer [->buffer ->status]]
             [potemkin :refer [def-derived-map]])
   (:import [clojure.lang
             PersistentArrayMap]
