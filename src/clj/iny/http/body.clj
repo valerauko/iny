@@ -8,7 +8,7 @@
             Unpooled]))
 
 (defprotocol WritableBody
-  (^ByteBuf ->buffer [_] [_ _]))
+  (^io.netty.buffer.ByteBuf ->buffer [_] [_ _]))
 
 (let [charset (Charset/forName "UTF-8")]
   (extend-protocol WritableBody

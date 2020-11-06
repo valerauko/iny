@@ -1,4 +1,6 @@
 (ns iny.http1.headers
+  (:require [iny.meta :refer [version]]
+            [iny.http.date :refer [date-header-value]])
   (:import [java.util
             Map$Entry]
            [clojure.lang

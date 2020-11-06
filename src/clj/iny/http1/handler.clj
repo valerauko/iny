@@ -1,68 +1,33 @@
 (ns iny.http1.handler
   (:require [clojure.tools.logging :as log]
-            [iny.meta :refer [version]]
-            [iny.http.date :refer [schedule-date-value-update
-                                   date-header-value]]
+            [iny.http.date :refer [schedule-date-value-update]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
-            [iny.http1.headers :refer [->headers]]
+            [iny.http1.headers :refer [->headers headers-with-date]]
             [potemkin :refer [def-derived-map]])
-  (:import [clojure.lang
-            PersistentArrayMap]
-           [java.util
-            Date
-            TimeZone
-            Locale
-            Collections
-            Map$Entry]
-           [java.util.concurrent
-            TimeUnit]
-           [java.util.concurrent.atomic
-            AtomicReference]
-           [java.text
-            DateFormat
-            SimpleDateFormat]
+  (:import [java.util
+            Collections]
            [java.io
             IOException]
            [java.net
             InetSocketAddress]
-           [java.nio
-            ByteBuffer]
            [io.netty.util
-            AsciiString
             ResourceLeakDetector
             ResourceLeakDetector$Level]
-           [io.netty.util.concurrent
-            FastThreadLocal]
-           [java.nio.charset
-            Charset]
-           [io.netty.buffer
-            ByteBuf
-            Unpooled
-            AdvancedLeakAwareByteBuf]
            [io.netty.channel
             ChannelFuture
-            ChannelPipeline
             ChannelFutureListener
             ChannelHandlerContext
-            ChannelHandler
             ChannelInboundHandler]
-           [io.netty.handler.flush
-            FlushConsolidationHandler]
            [io.netty.handler.codec.http
             HttpUtil
-            HttpServerExpectContinueHandler
             HttpContent
             LastHttpContent
             HttpRequest
             HttpResponse
-            HttpRequestDecoder
-            HttpResponseEncoder
             HttpVersion
             HttpResponseStatus
             HttpHeaders
-            HttpHeaderNames
-            DefaultHttpHeaders
             DefaultHttpContent
             DefaultHttpResponse]))
 
