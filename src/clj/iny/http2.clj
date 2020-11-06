@@ -36,14 +36,6 @@
   []
   (.build (Http2FrameCodecBuilder/forServer)))
 
-(defn listener
-  []
-  (proxy
-    [ChannelFutureListener] []
-    (operationComplete [^ChannelFuture ftr]
-      (when-let [cause (.cause ftr)]
-        (log/error cause)))))
-
 (defn http2-handler
   [user-handler]
   (reify
