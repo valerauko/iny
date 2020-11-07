@@ -3,7 +3,7 @@
             HttpResponseStatus]))
 
 (defprotocol ResponseStatus
-  (^HttpResponseStatus ->status [_]))
+  (^io.netty.handler.codec.http.HttpResponseStatus ->status [_]))
 
 (extend-protocol ResponseStatus
   nil

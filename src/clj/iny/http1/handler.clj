@@ -1,7 +1,7 @@
 (ns iny.http1.handler
   (:require [clojure.tools.logging :as log]
             [iny.http.date :refer [schedule-date-value-update]]
-            [iny.http.method :refer [methods]]
+            [iny.http.method :refer [http-methods]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
             [iny.http1.headers :refer [->headers headers-with-date]]
@@ -65,7 +65,7 @@
 
 (defn request-method
   [^HttpRequest req]
-  (->> req (.method) (.name) (.get methods)))
+  (->> req (.method) (.name) (.get http-methods)))
 
 (def-derived-map RingRequest
   [^ChannelHandlerContext ctx

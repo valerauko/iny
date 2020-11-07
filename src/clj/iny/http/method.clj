@@ -3,7 +3,7 @@
             Collections
             HashMap]))
 
-(def methods
+(def ^HashMap http-methods
   (-> {"OPTIONS" :options
        "GET" :get
        "HEAD" :head

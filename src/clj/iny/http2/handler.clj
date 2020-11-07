@@ -2,7 +2,7 @@
   (:require [clojure.tools.logging :as log]
             [potemkin :refer [def-derived-map]]
             [iny.http.date :refer [schedule-date-value-update]]
-            [iny.http.method :refer [methods]]
+            [iny.http.method :refer [http-methods]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
             [iny.http2.headers :refer [->headers]])
@@ -12,6 +12,8 @@
            [java.net
             InetSocketAddress]
            [io.netty.channel
+            ChannelFuture
+            ChannelFutureListener
             ChannelHandlerContext
             ChannelInboundHandler]
            [io.netty.handler.codec.http
@@ -33,7 +35,7 @@
 
 (defn request-method
   [^Http2Headers headers]
-  (->> headers (.method) (.get methods)))
+  (->> headers (.method) (.get http-methods)))
 
 (def-derived-map RingRequest
   [^ChannelHandlerContext ctx
@@ -79,10 +81,15 @@
           headers-frame (doto (DefaultHttp2HeadersFrame. headers)
                               (.stream stream))]
       (.write ctx headers-frame (.voidPromise ctx))
+      ;; can't write with VoidPromise, because then writeAndFlush
+      ;; starts generating massive amounts of IllegalStateExceptions.
+      ;; cause: Http2ConnectionHandler#closeStream tries to add
+      ;; a listener to the future, which fails automatically if the
+      ;; future is a VoidPromise.
       (when body
         (let [data-frame (doto (DefaultHttp2DataFrame. buffer false)
                                (.stream stream))]
-          (.write ctx data-frame (.voidPromise ctx))))
+          (.write ctx data-frame)))
       (let [last-frame (doto (.copy empty-last-data)
                              (.stream stream))]
         (.writeAndFlush ctx last-frame)))))
