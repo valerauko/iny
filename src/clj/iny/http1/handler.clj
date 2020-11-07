@@ -1,13 +1,12 @@
 (ns iny.http1.handler
   (:require [clojure.tools.logging :as log]
             [iny.http.date :refer [schedule-date-value-update]]
+            [iny.http.method :refer [methods]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
             [iny.http1.headers :refer [->headers headers-with-date]]
             [potemkin :refer [def-derived-map]])
-  (:import [java.util
-            Collections]
-           [java.io
+  (:import [java.io
             IOException]
            [java.net
             InetSocketAddress]
@@ -64,20 +63,9 @@
     (HttpUtil/setContentLength response (.readableBytes buffer))
     (write-response ctx response response-body)))
 
-(let [methods (-> {"OPTIONS" :options
-                   "GET" :get
-                   "HEAD" :head
-                   "POST" :post
-                   "PUT" :put
-                   "PATCH" :patch
-                   "DELETE" :delete
-                   "TRACE" :trace
-                   "CONNECT" :connect}
-                  (java.util.HashMap.)
-                  (Collections/unmodifiableMap))]
-  (defn request-method
-    [^HttpRequest req]
-    (->> req (.method) (.name) (.get methods))))
+(defn request-method
+  [^HttpRequest req]
+  (->> req (.method) (.name) (.get methods)))
 
 (def-derived-map RingRequest
   [^ChannelHandlerContext ctx
