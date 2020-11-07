@@ -121,7 +121,7 @@
       (channelRead [_ ctx msg]
         (cond
           (instance? HttpRequest msg)
-            (when-not (HttpHeaders/isTransferEncodingChunked msg)
+            (when-not (HttpUtil/isTransferEncodingChunked msg)
               (let [ftr (->> msg
                              (netty->ring-request ctx)
                              (user-handler)
