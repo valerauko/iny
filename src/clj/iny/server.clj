@@ -9,9 +9,7 @@
            [io.netty.channel
             MultithreadEventLoopGroup
             ChannelOption
-            ChannelInitializer
-            ChannelHandler
-            ChannelInboundHandler]
+            ChannelInitializer]
            [io.netty.channel.epoll
             Epoll
             EpollEventLoopGroup
