@@ -6,17 +6,16 @@
            [clojure.lang
             PersistentArrayMap]
            [io.netty.handler.codec.http
-            HttpHeaders
             HttpHeaderNames
             DefaultHttpHeaders]))
 
 (defprotocol Headers
-  (^HttpHeaders ->headers [_]))
+  (^io.netty.handler.codec.http.DefaultHttpHeaders ->headers [_]))
 
 (let [base-headers (doto (DefaultHttpHeaders. false)
                          (.add HttpHeaderNames/SERVER (str "iny/" version))
                          (.add HttpHeaderNames/CONTENT_TYPE "text/plain"))]
-  (defn headers-with-date
+  (defn ^DefaultHttpHeaders headers-with-date
     []
     (doto (.copy ^DefaultHttpHeaders base-headers)
           (.add HttpHeaderNames/DATE (date-header-value))))
@@ -28,7 +27,7 @@
 
     PersistentArrayMap
     (->headers [^Iterable header-map]
-      (let [headers ^HttpHeaders (headers-with-date)
+      (let [headers ^DefaultHttpHeaders (headers-with-date)
             i (.iterator header-map)]
         (loop []
           (if (.hasNext i)

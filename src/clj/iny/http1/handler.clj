@@ -27,7 +27,6 @@
             HttpResponse
             HttpVersion
             HttpResponseStatus
-            HttpHeaders
             DefaultHttpContent
             DefaultHttpResponse]))
 
@@ -47,7 +46,7 @@
   (let [error-head (doto (DefaultHttpResponse.
                           HttpVersion/HTTP_1_1
                           HttpResponseStatus/INTERNAL_SERVER_ERROR
-                          ^HttpHeaders (headers-with-date))
+                          (headers-with-date))
                          (HttpUtil/setContentLength 0))]
     (write-response ctx error-head nil)))
 
