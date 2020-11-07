@@ -103,7 +103,7 @@
 
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
-  (let [keep-alive? (atom false)]
+  (let []
     (reify
       ChannelInboundHandler
 
@@ -125,7 +125,7 @@
                              (netty->ring-request ctx)
                              (user-handler)
                              (respond ctx))]
-                (when-not keep-alive?
+                (when-not (HttpUtil/isKeepAlive msg)
                   (.addListener ftr ChannelFutureListener/CLOSE))))
           ; (instance? LastHttpContent msg)
           ;   nil
