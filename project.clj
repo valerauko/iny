@@ -19,9 +19,6 @@
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
 
-  :repl-options {:init-ns iny.runner}
-  :main ^:skip-aot iny.runner
-
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
 
   :aliases {"analyze" ["with-profile" "analyze" "do" ["run"]]}
@@ -31,7 +28,8 @@
              ; cf https://www.graalvm.org/docs/reference-manual/native-image/#tracing-agent
              :analyze {:aot :all
                        :jvm-opts ["-agentlib:native-image-agent=config-output-dir=./resources"]}
-             :dev {:jvm-opts
+             :dev {:source-paths ["dev"]
+                   :jvm-opts
                    ["-server"
                     "-Xms2G"
                     "-Xmx2G"
@@ -44,11 +42,10 @@
                     "-Dvertx.disableContextTimings=true"
                     "-Dvertx.disableTCCL=true"
                     "-Djdk.attach.allowAttachSelf"]
-                   :global-vars
-                   {*warn-on-reflection* true
-                    *unchecked-math* :warn-on-boxed}
                    :dependencies
-                   [[io.netty/netty-transport-native-epoll "4.1.53.Final"
+                   [[org.clojure/test.check "1.1.0"]
+                    [org.clojure/tools.namespace "1.0.0"]
+                    [io.netty/netty-transport-native-epoll "4.1.53.Final"
                      :classifier "linux-x86_64"]
                     [ch.qos.logback/logback-classic "1.2.3"]
                     [criterium "0.4.5"]
