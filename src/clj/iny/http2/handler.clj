@@ -6,10 +6,7 @@
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
             [iny.http2.headers :refer [->headers]])
-  (:import [java.util
-            Collections
-            HashMap]
-           [java.net
+  (:import [java.net
             InetSocketAddress]
            [io.netty.channel
             ChannelFuture
