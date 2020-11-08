@@ -11,9 +11,6 @@
                  [io.netty/netty-common "4.1.53.Final"]
                  [io.netty/netty-buffer "4.1.53.Final"]
                  [io.netty/netty-transport "4.1.53.Final"]
-                 [io.netty/netty-transport-native-epoll "4.1.53.Final"
-                  ; :classifier "linux-x86_64"
-                  ]
                  [io.netty/netty-codec "4.1.53.Final"]
                  [io.netty/netty-handler "4.1.53.Final"]
                  [io.netty/netty-codec-http "4.1.53.Final"]
@@ -50,7 +47,9 @@
                    {*warn-on-reflection* true
                     *unchecked-math* :warn-on-boxed}
                    :dependencies
-                   [[ch.qos.logback/logback-classic "1.2.3"]
+                   [[io.netty/netty-transport-native-epoll "4.1.53.Final"
+                     :classifier "linux-x86_64"]
+                    [ch.qos.logback/logback-classic "1.2.3"]
                     [criterium "0.4.5"]
                     ; [aleph "0.4.7-alpha5"]
                     [metosin/pohjavirta "0.0.1-alpha7"]

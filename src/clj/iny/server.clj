@@ -1,5 +1,6 @@
 (ns iny.server
   (:require [clojure.tools.logging :as log]
+            [iny.native :refer [event-loop socket-chan]]
             ; [iny.http :as http]
             [iny.http2 :as http2])
   (:import [io.netty.bootstrap
@@ -7,19 +8,10 @@
            [io.netty.buffer
             PooledByteBufAllocator]
            [io.netty.channel
-            MultithreadEventLoopGroup
             ChannelOption
             ChannelInitializer]
-           [io.netty.channel.epoll
-            Epoll
-            EpollEventLoopGroup
-            EpollServerSocketChannel]
-           [io.netty.channel.nio
-            NioEventLoopGroup]
            [io.netty.channel.socket
             SocketChannel]
-           [io.netty.channel.socket.nio
-            NioServerSocketChannel]
            [io.netty.handler.flush
             FlushConsolidationHandler]
            [io.netty.handler.codec.http
@@ -41,14 +33,9 @@
   (let [cores (- (.availableProcessors (Runtime/getRuntime)) 3)
         parent-threads (inc (int (Math/floor (/ cores 3.0))))
         child-threads (- (+ 2 cores) parent-threads)
-        epoll? (Epoll/isAvailable)
-        socket-chan (if epoll? EpollServerSocketChannel NioServerSocketChannel)
-        parent-group (if epoll?
-                       (EpollEventLoopGroup. parent-threads)
-                       (NioEventLoopGroup. parent-threads))
-        child-group (if epoll?
-                      (EpollEventLoopGroup. child-threads)
-                      (NioEventLoopGroup. child-threads))
+        socket-chan (socket-chan)
+        parent-group (event-loop parent-threads)
+        child-group (event-loop child-threads)
         port 8080]
     (try
       (let [boot (doto (ServerBootstrap.)
@@ -56,8 +43,7 @@
                        (.option ChannelOption/SO_REUSEADDR true)
                        (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
                        (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
-                       (.group ^MultithreadEventLoopGroup parent-group
-                               ^MultithreadEventLoopGroup child-group)
+                       (.group parent-group child-group)
                        (.channel socket-chan)
                        (.childHandler (server-pipeline handler))
                        (.childOption ChannelOption/SO_REUSEADDR true)
@@ -67,8 +53,9 @@
             channel (-> boot (.bind port) .sync .channel)]
         (fn closer []
           (-> channel .close .sync)
-          (.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
-          (.shutdownGracefully ^MultithreadEventLoopGroup child-group)))
+          (.shutdownGracefully parent-group)
+          (.shutdownGracefully child-group)))
       (catch Exception e
-        @(.shutdownGracefully ^MultithreadEventLoopGroup parent-group)
-        @(.shutdownGracefully ^MultithreadEventLoopGroup child-group)))))
+        (log/error e)
+        @(.shutdownGracefully parent-group)
+        @(.shutdownGracefully child-group)))))
