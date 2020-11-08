@@ -3,13 +3,9 @@
   (:import [io.netty.channel
             ChannelPipeline]
            [io.netty.handler.codec.http
-            HttpServerExpectContinueHandler
-            HttpRequestDecoder
-            HttpResponseEncoder]))
+            HttpServerExpectContinueHandler]))
 
 (defn server-pipeline
   [^ChannelPipeline pipeline user-handler]
-  (.addLast pipeline "http-decoder" (HttpRequestDecoder.))
-  (.addLast pipeline "http-encoder" (HttpResponseEncoder.))
   (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
   (.addLast pipeline "user-handler" (http-handler user-handler)))
