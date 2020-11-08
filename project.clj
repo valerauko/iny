@@ -16,9 +16,6 @@
                  [io.netty/netty-codec-http "4.1.53.Final"]
                  [io.netty/netty-codec-http2 "4.1.53.Final"]]
 
-  :source-paths ["src/clj"]
-  :java-source-paths ["src/java"]
-
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
 
   :aliases {"analyze" ["with-profile" "analyze" "do" ["run"]]}

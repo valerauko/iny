@@ -35,9 +35,9 @@
 
 (defn server
   [handler]
-  (let [cores (- (.availableProcessors (Runtime/getRuntime)) 3)
-        parent-threads (inc (int (Math/floor (/ cores 3.0))))
-        child-threads (- (+ 2 cores) parent-threads)
+  (let [total-threads (- (* 2 (.availableProcessors (Runtime/getRuntime))) 3)
+        parent-threads (inc (int (Math/floor (/ total-threads 3.0))))
+        child-threads (- (+ 2 total-threads) parent-threads)
         socket-chan (socket-chan)
         parent-group (event-loop parent-threads)
         child-group (event-loop child-threads)

@@ -11,7 +11,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(set-refresh-dirs "dev/clj" "src" "resources")
+(set-refresh-dirs "dev" "src/iny" "resources")
 
 (defn run-test
   [test-var]
