@@ -3,7 +3,10 @@
             [iny.native :refer [event-loop socket-chan]]
             ; [iny.http :as http]
             [iny.http2 :as http2])
-  (:import [io.netty.bootstrap
+  (:import [io.netty.util
+            ResourceLeakDetector
+            ResourceLeakDetector$Level]
+           [io.netty.bootstrap
             ServerBootstrap]
            [io.netty.buffer
             PooledByteBufAllocator]
@@ -17,6 +20,8 @@
            [io.netty.handler.codec.http
             HttpServerCodec
             HttpServerUpgradeHandler]))
+
+(ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
 (defn server-pipeline
   [user-handler]

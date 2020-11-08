@@ -1,18 +1,15 @@
 (ns iny.http1.handler
   (:require [clojure.tools.logging :as log]
+            [potemkin :refer [def-derived-map]]
             [iny.http.date :refer [schedule-date-value-update]]
             [iny.http.method :refer [http-methods]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
-            [iny.http1.headers :refer [->headers headers-with-date]]
-            [potemkin :refer [def-derived-map]])
+            [iny.http1.headers :refer [->headers headers-with-date]])
   (:import [java.io
             IOException]
            [java.net
             InetSocketAddress]
-           [io.netty.util
-            ResourceLeakDetector
-            ResourceLeakDetector$Level]
            [io.netty.channel
             ChannelFuture
             ChannelFutureListener
@@ -28,8 +25,6 @@
             HttpResponseStatus
             DefaultHttpContent
             DefaultHttpResponse]))
-
-(ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
 (defn ^ChannelFuture write-response
   [^ChannelHandlerContext ctx
