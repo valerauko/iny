@@ -54,7 +54,7 @@
   (.build (Http2FrameCodecBuilder/forServer)))
 
 (defn upgrade-factory
-  [handler]
+  [user-handler]
   (reify
     HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [_ proto]
@@ -64,7 +64,7 @@
         (Http2ServerUpgradeCodec.
          (codec)
          ^"[Lio.netty.channel.ChannelHandler;"
-         (into-array ChannelHandler [handler]))))))
+         (into-array ChannelHandler [user-handler]))))))
 
 (defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
   [user-handler]
