@@ -48,9 +48,10 @@
     (userEventTriggered [_ ctx event])
     (channelWritabilityChanged [_ ctx])))
 
-(defn ^Http2FrameCodec codec
-  []
-  (.build (Http2FrameCodecBuilder/forServer)))
+(let [builder (Http2FrameCodecBuilder/forServer)]
+  (defn ^Http2FrameCodec codec
+    []
+    (.build builder)))
 
 (defn upgrade-factory
   [user-handler]
