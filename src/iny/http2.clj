@@ -41,9 +41,8 @@
      (let [pipeline (.pipeline ctx)]
        ;; removes the h2c-upgrade handler (no upgrade was attempted)
        (build-http-pipeline pipeline user-handler)
-       (.fireChannelRead ctx (ReferenceCountUtil/retain msg))
-       (.remove pipeline this)
-       (.remove pipeline HttpServerUpgradeHandler)))
+       (.fireChannelRead ctx msg)
+       (.remove pipeline this)))
     (channelReadComplete [_ ctx])
     (userEventTriggered [_ ctx event])
     (channelWritabilityChanged [_ ctx])))
