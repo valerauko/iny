@@ -40,31 +40,29 @@
      [this ctx msg]
      (let [pipeline (.pipeline ctx)]
        ;; removes the h2c-upgrade handler (no upgrade was attempted)
-       (.remove pipeline HttpServerCodec)
-       (.remove pipeline HttpServerUpgradeHandler)
        (build-http-pipeline pipeline user-handler)
-       (.remove pipeline this)
-       (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))
+       (.fireChannelRead ctx msg)
+       (.remove pipeline this)))
     (channelReadComplete [_ ctx])
     (userEventTriggered [_ ctx event])
     (channelWritabilityChanged [_ ctx])))
 
-(defn ^Http2FrameCodec codec
-  []
-  (.build (Http2FrameCodecBuilder/forServer)))
+(let [builder (Http2FrameCodecBuilder/forServer)]
+  (defn ^Http2FrameCodec codec
+    []
+    (.build builder)))
 
 (defn upgrade-factory
-  [handler]
+  [user-handler]
   (reify
     HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [_ proto]
-      (when (AsciiString/contentEquals
-             Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME
-             proto)
-        (Http2ServerUpgradeCodec.
-         (codec)
-         ^"[Lio.netty.channel.ChannelHandler;"
-         (into-array ChannelHandler [handler]))))))
+      (condp #(AsciiString/contentEquals %1 %2) proto
+        Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME
+          (Http2ServerUpgradeCodec.
+           (codec)
+           ^"[Lio.netty.channel.ChannelHandler;"
+           (into-array ChannelHandler [user-handler]))))))
 
 (defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
   [user-handler]
