@@ -58,13 +58,12 @@
   (reify
     HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [_ proto]
-      (when (AsciiString/contentEquals
-             Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME
-             proto)
-        (Http2ServerUpgradeCodec.
-         (codec)
-         ^"[Lio.netty.channel.ChannelHandler;"
-         (into-array ChannelHandler [user-handler]))))))
+      (condp #(AsciiString/contentEquals %1 %2) proto
+        Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME
+          (Http2ServerUpgradeCodec.
+           (codec)
+           ^"[Lio.netty.channel.ChannelHandler;"
+           (into-array ChannelHandler [user-handler]))))))
 
 (defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
   [user-handler]
