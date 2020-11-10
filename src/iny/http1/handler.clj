@@ -2,7 +2,7 @@
   (:require [clojure.tools.logging :as log]
             [potemkin :refer [def-derived-map]]
             [iny.http.date :refer [schedule-date-value-update]]
-            [iny.http.method :refer [http-methods]]
+            [iny.http.method :refer [http-methods get?]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
             [iny.http1.headers :refer [->headers headers-with-date]])
@@ -122,7 +122,7 @@
       (channelRead [_ ctx msg]
         (cond
           (instance? HttpRequest msg)
-            (when-not (HttpUtil/isTransferEncodingChunked msg)
+            (if (or (get? msg) (content-known-empty? msg))
               (let [ftr (->> msg
                              (netty->ring-request ctx)
                              (user-handler)
