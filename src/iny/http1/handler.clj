@@ -87,7 +87,8 @@
 
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
-  (let []
+  (let [body-buf (atom nil)
+        request (atom nil)]
     (reify
       ChannelInboundHandler
 
