@@ -10,6 +10,9 @@
             IOException]
            [java.net
             InetSocketAddress]
+           [io.netty.buffer
+            ByteBuf
+            ByteBufInputStream]
            [io.netty.channel
             ChannelFuture
             ChannelFutureListener
@@ -66,6 +69,7 @@
 (def-derived-map RingRequest
   [^ChannelHandlerContext ctx
    ^HttpRequest           req
+   body
    q-at]
   :uri            (if (not (neg? ^int q-at))
                     (.substring (.uri req) 0 q-at)
@@ -75,6 +79,7 @@
   :headers        (.headers req)
   :request-method (request-method req)
   :scheme         :http
+  :body           (ByteBufInputStream. body false)
   :server-name    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getHostName))
   :server-port    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getPort))
   :remote-addr    (some-> ctx (.channel) ^InetSocketAddress (.remoteAddress) (.getAddress) (.getHostAddress))
@@ -82,8 +87,9 @@
 
 (defn netty->ring-request
   [^ChannelHandlerContext ctx
+   ^ByteBuf               body
    ^HttpRequest           req]
-  (->RingRequest ctx req (.indexOf (.uri req) (int 63))))
+  (->RingRequest ctx req body (.indexOf (.uri req) (int 63))))
 
 (defn content-length'
   [^HttpRequest req]
@@ -124,7 +130,7 @@
           (instance? HttpRequest msg)
             (if (or (get? msg) (content-known-empty? msg))
               (let [ftr (->> msg
-                             (netty->ring-request ctx)
+                             (netty->ring-request ctx (->buffer nil))
                              (user-handler)
                              (respond ctx))]
                 (when-not (HttpUtil/isKeepAlive msg)
