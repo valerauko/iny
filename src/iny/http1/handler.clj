@@ -4,7 +4,7 @@
             [iny.http.date :refer [schedule-date-value-update]]
             [iny.http.method :refer [http-methods get?]]
             [iny.http.status :refer [->status]]
-            [iny.http.body :refer [->buffer]]
+            [iny.http.body :refer [->buffer release]]
             [iny.http1.headers :refer [->headers headers->map headers-with-date]])
   (:import [java.io
             IOException]
@@ -143,7 +143,8 @@
           ;   nil
           ; :else
           ;   (log/info (class msg))
-          ))
+          )
+          (release msg))
       (channelReadComplete [_ ctx])
       (userEventTriggered [_ ctx event])
       (channelWritabilityChanged [_ ctx]))))
