@@ -122,6 +122,25 @@
 (def data-factory
   (DefaultHttpDataFactory. DefaultHttpDataFactory/MINSIZE))
 
+(defprotocol LogUpload
+  (log-it [_]))
+
+(extend-protocol LogUpload
+  Attribute
+  (log-it [^Attribute attr]
+   (log/info {(.getName attr) (.getValue attr)}))
+
+  FileUpload
+  (log-it [^FileUpload upload]
+   (log/info
+    {:field-name (.getName upload)
+     :filename (.getFilename upload)
+     :content-type (.getContentType upload)
+     :contents (if (.isInMemory upload)
+                 (.getByteBuf upload)
+                 (.getFile upload))
+     :size (.definedLength upload)})))
+
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
   (let [body-buf (atom nil)
