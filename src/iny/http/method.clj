@@ -1,7 +1,10 @@
 (ns iny.http.method
   (:import [java.util
             Map
-            Collections]))
+            Collections]
+           [io.netty.handler.codec.http
+            HttpRequest
+            HttpMethod]))
 
 (def ^Map http-methods
   (-> {"OPTIONS" :options
@@ -14,3 +17,11 @@
        "TRACE" :trace
        "CONNECT" :connect}
       (Collections/unmodifiableMap)))
+
+(defprotocol MethodCheck
+  (^boolean get? [_]))
+
+(extend-protocol MethodCheck
+  HttpRequest
+  (get? [req]
+    (= (.method req) HttpMethod/GET)))
