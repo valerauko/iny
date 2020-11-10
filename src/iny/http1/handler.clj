@@ -35,7 +35,7 @@
    ^HttpResponse          head
    ^HttpContent           body]
   (.write ctx head (.voidPromise ctx))
-  (when (pos? (-> body (.content) (.readableBytes)))
+  (when (some-> body (.content) (.readableBytes) (pos?))
     (.write ctx body (.voidPromise ctx)))
   (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))
 
