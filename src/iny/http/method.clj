@@ -1,9 +1,9 @@
 (ns iny.http.method
   (:import [java.util
-            Collections
-            HashMap]))
+            Map
+            Collections]))
 
-(def ^HashMap http-methods
+(def ^Map http-methods
   (-> {"OPTIONS" :options
        "GET" :get
        "HEAD" :head
@@ -13,5 +13,4 @@
        "DELETE" :delete
        "TRACE" :trace
        "CONNECT" :connect}
-      (HashMap.)
       (Collections/unmodifiableMap)))
