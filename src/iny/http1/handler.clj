@@ -5,7 +5,7 @@
             [iny.http.method :refer [http-methods get?]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer]]
-            [iny.http1.headers :refer [->headers headers-with-date]])
+            [iny.http1.headers :refer [->headers headers->map headers-with-date]])
   (:import [java.io
             IOException]
            [java.net
@@ -76,7 +76,7 @@
                     (.uri req))
   :query-string   (if (not (neg? ^int q-at))
                     (.substring (.uri req) q-at))
-  :headers        (.headers req)
+  :headers        (headers->map (.headers req))
   :request-method (request-method req)
   :scheme         :http
   :body           (ByteBufInputStream. body false)
