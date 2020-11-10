@@ -42,4 +42,14 @@
       ([str]
         (Unpooled/copiedBuffer ^String str charset))
       ([str ctx]
-        (->buffer ^bytes (.getBytes str) ctx)))))
+        (->buffer ^bytes (.getBytes str) ctx)))
+
+    ByteBuf
+    (->buffer
+      ([buf]
+       buf)
+      ([^ByteBuf buf ^ChannelHandlerContext ctx]
+       (if (= (.alloc buf) (.alloc ctx))
+         buf
+         (doto (-> ctx (.alloc) (.ioBuffer (.readableBytes buf)))
+               (.writeBytes buf)))))))
