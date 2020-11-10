@@ -85,6 +85,23 @@
    ^HttpRequest           req]
   (->RingRequest ctx req (.indexOf (.uri req) (int 63))))
 
+(defn content-length'
+  [^HttpRequest req]
+  (when-let [header-value (-> req
+                              (.headers)
+                              (.get HttpHeaderNames/CONTENT_LENGTH))]
+    (try
+      (Long/parseLong header-value)
+      (catch Throwable e
+        (log/debug "Wrong content length header value" e)
+        nil))))
+
+(def content-length (memoize content-length'))
+
+(defn content-known-empty?
+  [^HttpRequest req]
+  (= (content-length req) 0))
+
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
   (let [body-buf (atom nil)
