@@ -70,7 +70,7 @@
 (def-derived-map RingRequest
   [^ChannelHandlerContext ctx
    ^HttpRequest           req
-   body
+   ^ByteBuf               body
    q-at]
   :uri            (if (not (neg? ^int q-at))
                     (.substring (.uri req) 0 q-at)
@@ -144,8 +144,8 @@
                 (reset! request (netty->ring-request ctx buffer msg))
                 (reset! body-buf buffer)))
           (instance? HttpContent msg)
-            (when-let [buffer @body-buf]
-              (.writeBytes buffer (.content msg))
+            (when-let [^ByteBuf buffer @body-buf]
+              (.writeBytes buffer (.content ^HttpContent msg))
               (when (instance? LastHttpContent msg)
                 (->> @request
                      (user-handler)

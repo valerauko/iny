@@ -42,7 +42,7 @@
   [headers]
   (persistent!
    (reduce-kv
-    (fn [aggr k v]
-      (assoc! aggr (-> k (.toString) (.toLowerCase)) v))
+    (fn [aggr ^String k v]
+      (assoc! aggr (-> k (.toLowerCase)) v))
     (transient {})
     (into {} headers))))

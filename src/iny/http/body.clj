@@ -14,7 +14,7 @@
   (^io.netty.buffer.ByteBuf ->buffer [_] [_ _]))
 
 (defn release
-  [buffer]
+  [^ReferenceCounted buffer]
   (when (and (instance? ReferenceCounted buffer) (pos? (.refCnt buffer)))
     (ReferenceCountUtil/release buffer)))
 
@@ -24,10 +24,8 @@
     (->buffer
       ([b]
         (Unpooled/copiedBuffer ^bytes b))
-      ([b ctx]
-        (doto (-> ^ChannelHandlerContext ctx
-                  (.alloc)
-                  (.ioBuffer (alength ^bytes b)))
+      ([b ^ChannelHandlerContext ctx]
+        (doto (-> ctx (.alloc) (.ioBuffer (alength ^bytes b)))
               (.writeBytes ^bytes b))))
 
     nil
