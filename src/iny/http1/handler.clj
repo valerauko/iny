@@ -31,7 +31,8 @@
    ^HttpResponse          head
    ^HttpContent           body]
   (.write ctx head (.voidPromise ctx))
-  (if body (.write ctx body (.voidPromise ctx)))
+  (when (pos? (-> body (.content) (.readableBytes)))
+    (.write ctx body (.voidPromise ctx)))
   (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))
 
 (defn ^ChannelFuture respond-500
