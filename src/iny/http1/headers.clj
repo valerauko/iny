@@ -37,3 +37,12 @@
                     (.getValue elem))
               (recur))))
         headers))))
+
+(defn headers->map
+  [headers]
+  (persistent!
+   (reduce-kv
+    (fn [aggr ^String k v]
+      (assoc! aggr (-> k (.toLowerCase)) v))
+    (transient {})
+    (into {} headers))))
