@@ -6,10 +6,11 @@
             [clj-async-profiler.core :as prof]
             [jsonista.core :as json]
             [iny.server :as server]
-            [pohjavirta.server :as poh]))
-
-(set! *warn-on-reflection* true)
-(set! *unchecked-math* :warn-on-boxed)
+            [pohjavirta.server :as poh]
+            [ring.middleware.defaults :refer [wrap-defaults api-defaults]])
+  (:import [io.netty.util
+            ResourceLeakDetector
+            ResourceLeakDetector$Level]))
 
 (set-refresh-dirs "dev" "src/iny" "resources")
 
@@ -18,16 +19,25 @@
   (require :reload test-var)
   (run-tests test-var))
 
-(defn my-handler [{:keys [uri]}]
+(defn my-handler [{:keys [uri params body] :as request}]
+  (.reset ^java.io.InputStream body)
   {:status 200
-   :body (json/write-value-as-bytes {:message (str "Hello from " uri)})
+   :body (json/write-value-as-bytes {:message (str "Hello from " uri)
+                                     :params params
+                                     :body (slurp body)})
    :headers {"content-type" "application/json"}})
 
 (def stop-server nil)
 
 (defn start-server
   [& _]
-  (def stop-server (server/server my-handler)))
+  ; (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/SIMPLE)
+  (def stop-server (server/server
+                    (wrap-defaults my-handler (assoc-in
+                                               api-defaults
+                                               [:params :multipart]
+                                               true))
+                    )))
 
 (defn start-poh
   [& _]

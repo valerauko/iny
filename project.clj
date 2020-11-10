@@ -39,6 +39,9 @@
                     "-Dvertx.disableContextTimings=true"
                     "-Dvertx.disableTCCL=true"
                     "-Djdk.attach.allowAttachSelf"]
+                   :global-vars
+                    {*warn-on-reflection* true
+                     *unchecked-math* :warn-on-boxed}
                    :dependencies
                    [[org.clojure/test.check "1.1.0"]
                     [org.clojure/tools.namespace "1.0.0"]
@@ -46,6 +49,8 @@
                      :classifier "linux-x86_64"]
                     [ch.qos.logback/logback-classic "1.2.3"]
                     [criterium "0.4.5"]
-                    ; [aleph "0.4.7-alpha5"]
+                    [byte-streams "0.2.4"]
+                    [ring/ring-defaults "0.3.2"]
+                    [aleph "0.4.7-alpha5"]
                     [metosin/pohjavirta "0.0.1-alpha7"]
                     [com.clojure-goes-fast/clj-async-profiler "0.4.1"]]}})
