@@ -136,11 +136,23 @@
                              (user-handler)
                              (respond ctx))]
                 (when-not (HttpUtil/isKeepAlive msg)
-                  (.addListener ftr ChannelFutureListener/CLOSE))))
-          ; (instance? LastHttpContent msg)
-          ;   nil
-          ; (instance? HttpContent msg)
-          ;   nil
+                  (.addListener ftr ChannelFutureListener/CLOSE)))
+              (let [allocator (.alloc ctx)
+                    buffer (if-let [len (content-length msg)]
+                             (.buffer allocator len)
+                             (.buffer allocator))]
+                (reset! request (netty->ring-request ctx buffer msg))
+                (reset! body-buf buffer)))
+          (instance? HttpContent msg)
+            (when-let [buffer @body-buf]
+              (.writeBytes buffer (.content msg))
+              (when (instance? LastHttpContent msg)
+                (->> @request
+                     (user-handler)
+                     (respond ctx))
+                (release buffer)
+                (reset! request nil)
+                (reset! body-buf nil)))
           ; :else
           ;   (log/info (class msg))
           )
