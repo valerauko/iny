@@ -30,6 +30,16 @@
             DefaultHttpContent
             DefaultHttpResponse]))
 
+(defmacro cond-let
+  [& clauses]
+  (when clauses
+    (list 'if-let (first clauses)
+          (if (next clauses)
+            (second clauses)
+            (throw (IllegalArgumentException.
+                    "cond-let requires an even number of forms")))
+          (cons 'iny.http1.handler/cond-let (next (next clauses))))))
+
 (defn ^ChannelFuture write-response
   [^ChannelHandlerContext ctx
    ^HttpResponse          head
