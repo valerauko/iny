@@ -5,10 +5,18 @@
             ChannelHandlerContext]
            [io.netty.buffer
             ByteBuf
-            Unpooled]))
+            Unpooled]
+           [io.netty.util
+            ReferenceCounted
+            ReferenceCountUtil]))
 
 (defprotocol WritableBody
   (^io.netty.buffer.ByteBuf ->buffer [_] [_ _]))
+
+(defn release
+  [buffer]
+  (when (and (instance? ReferenceCounted buffer) (pos? (.refCnt buffer)))
+    (ReferenceCountUtil/release buffer)))
 
 (let [charset (Charset/forName "UTF-8")]
   (extend-protocol WritableBody
