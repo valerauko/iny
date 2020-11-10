@@ -119,6 +119,9 @@
   [^HttpRequest req]
   (= (content-length req) 0))
 
+(def data-factory
+  (DefaultHttpDataFactory. DefaultHttpDataFactory/MINSIZE))
+
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
   (let [body-buf (atom nil)
