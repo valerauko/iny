@@ -25,6 +25,7 @@
             HttpRequest
             HttpResponse
             HttpVersion
+            HttpHeaderNames
             HttpResponseStatus
             DefaultHttpContent
             DefaultHttpResponse]))
@@ -118,6 +119,7 @@
       (handlerAdded [_ ctx])
       (handlerRemoved [_ ctx])
       (exceptionCaught [_ ctx ex]
+        (log/error ex)
         (when-not (instance? IOException ex)
           (respond-500 ctx ex)))
       (channelRegistered [_ ctx]
