@@ -8,6 +8,9 @@
             [iny.http2.headers :refer [->headers]])
   (:import [java.net
             InetSocketAddress]
+           [io.netty.buffer
+            ByteBuf
+            ByteBufInputStream]
            [io.netty.channel
             ChannelFuture
             ChannelFutureListener
@@ -61,7 +64,7 @@
    ^Http2HeadersFrame     req]
   (let [headers (.headers req)
         path (.toString (.path headers))]
-    (->RingRequest ctx req headers path
+    (->RingRequest ctx req headers body path
                    (.indexOf path (int 63)))))
 
 (let [empty-last-data (DefaultHttp2DataFrame. true)]
@@ -98,7 +101,7 @@
   [^Http2HeadersFrame req]
   (when-let [header-value (-> req
                               (.headers)
-                              (.get HttpHeaderNames/CONTENT_LENGTH))]
+                              (.get "Content-Length"))]
     (try
       (Long/parseLong header-value)
       (catch Throwable e
@@ -109,8 +112,7 @@
 
 (defn http2-handler
   [user-handler frame-codec]
-  (let [body-buf (atom nil)
-        request (atom nil)]
+  (let [requests (atom {})]
     (reify
       ChannelInboundHandler
 
@@ -125,36 +127,45 @@
        [_ ctx ex]
        (log/warn ex)
        (.close ctx))
-      (channelRegistered [_ ctx]
-                         (schedule-date-value-update ctx))
+      (channelRegistered
+       [_ ctx]
+       (schedule-date-value-update ctx))
       (channelUnregistered [_ ctx])
       (channelActive [_ ctx])
       (channelInactive [_ ctx])
-      (channelRead [_ ctx msg]
-                   (cond
-                     (instance? Http2HeadersFrame msg)
-                     (let [stream (.stream ^Http2HeadersFrame msg)]
-                       (cond
-                         ;; request without body
-                         (.isEndStream ^Http2HeadersFrame msg)
-                         (->> msg
-                              (netty->ring-request ctx (->buffer nil))
-                              (user-handler)
-                              (respond ctx stream))
-                         ;; request with body
-                         ;; netty's HttpPostRequestDecoder can't handle http/2 frames
-                         :else
-                         (let [allocator (.alloc ctx)
-                               buffer (if-let [len (content-length msg)]
-                                        (.buffer allocator len)
-                                        (.buffer allocator))]
-                           nil)))
-                     (instance? Http2DataFrame msg)
-                     (log/debug msg)
-                     ; :else
-                     ;   (log/info (class msg))
-                     )
-                   (release msg))
+      (channelRead
+       [_ ctx msg]
+       (cond
+         (instance? Http2HeadersFrame msg)
+         (let [stream (.stream ^Http2HeadersFrame msg)]
+           (cond
+             ;; request without body
+             (.isEndStream ^Http2HeadersFrame msg)
+             (->> msg
+                  (netty->ring-request ctx (->buffer nil))
+                  (user-handler)
+                  (respond ctx stream))
+             ;; request with body
+             ;; netty's HttpPostRequestDecoder can't handle http/2 frames
+             :else
+             (let [allocator (.alloc ctx)
+                   buffer (if-let [len (content-length msg)]
+                            (.buffer allocator len)
+                            (.buffer allocator))]
+               (swap! requests assoc stream
+                      [(netty->ring-request ctx buffer msg) buffer]))))
+         ;; body frames
+         (instance? Http2DataFrame msg)
+         (let [stream (.stream ^Http2DataFrame msg)
+               [request ^ByteBuf buffer] (get @requests stream)]
+           (.writeBytes buffer (.content ^Http2DataFrame msg))
+           (when (.isEndStream ^Http2DataFrame msg)
+             (->> request
+                  (user-handler)
+                  (respond ctx stream))
+             (release buffer)
+             (swap! requests assoc stream nil))))
+       (release msg))
       (channelReadComplete [_ ctx])
       (userEventTriggered [_ ctx event])
       (channelWritabilityChanged [_ ctx]))))
