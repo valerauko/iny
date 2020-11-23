@@ -35,7 +35,7 @@
 
 (defn request-method
   [^Http2Headers headers]
-  (->> headers (.method) (.get http-methods)))
+  (->> headers (.method) (str) (.get http-methods)))
 
 (def-derived-map RingRequest
   [^ChannelHandlerContext ctx
@@ -51,7 +51,7 @@
                     (.substring path q-at))
   :headers        headers
   :request-method (request-method headers)
-  :scheme         (.scheme headers)
+  :scheme         (-> headers (.scheme) (str) (keyword))
   :body           (ByteBufInputStream. body false)
   :server-name    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getHostName))
   :server-port    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getPort))
