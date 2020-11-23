@@ -50,7 +50,7 @@
   :query-string   (if (not (neg? ^int q-at))
                     (.substring path q-at))
   :headers        headers
-  :request-method (request-method headers)
+  :request-method (str (request-method headers))
   :scheme         (-> headers (.scheme) (str) (keyword))
   :body           (ByteBufInputStream. body false)
   :server-name    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getHostName))
@@ -142,7 +142,7 @@
              (.isEndStream ^Http2HeadersFrame msg)
              (->> msg
                   (netty->ring-request ctx (->buffer nil))
-                  (user-handler)
+                  ^IPersistentMap (user-handler)
                   (respond ctx stream))
              ;; request with body
              ;; netty's HttpPostRequestDecoder can't handle http/2 frames
@@ -160,7 +160,7 @@
            (.writeBytes buffer (.content ^Http2DataFrame msg))
            (when (.isEndStream ^Http2DataFrame msg)
              (->> request
-                  (user-handler)
+                  ^IPersistentMap (user-handler)
                   (respond ctx stream))
              (release buffer)
              (swap! requests assoc stream nil))))

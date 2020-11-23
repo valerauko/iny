@@ -24,4 +24,4 @@
 (extend-protocol MethodCheck
   HttpRequest
   (get? [req]
-    (= (.method req) HttpMethod/GET)))
+    (.equals (.method req) HttpMethod/GET)))

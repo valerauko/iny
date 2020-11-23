@@ -1,3 +1,3 @@
 (ns iny.meta)
 
-(def version "0.0.1")
+(def ^:const version "0.0.1")

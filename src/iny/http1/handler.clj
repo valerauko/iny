@@ -177,7 +177,7 @@
               (or (get? msg) (content-known-empty? msg))
               (let [ftr (->> msg
                              (netty->ring-request ctx (->buffer nil))
-                             (user-handler)
+                             ^IPersistentMap (user-handler)
                              (respond ctx))]
                 (when-not (HttpUtil/isKeepAlive msg)
                   (.addListener ftr ChannelFutureListener/CLOSE)))
@@ -202,7 +202,7 @@
                 (.writeBytes buffer (.content ^HttpContent msg))
                 (when (instance? LastHttpContent msg)
                   (->> @request
-                       (user-handler)
+                       ^IPersistentMap (user-handler)
                        (respond ctx))
                   (release buffer)
                   (reset! request nil)
