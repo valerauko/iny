@@ -124,8 +124,7 @@
       (handlerRemoved [_ ctx])
       (exceptionCaught
        [_ ctx ex]
-       (log/warn ex)
-       (.close ctx))
+       (log/warn ex))
       (channelRegistered
        [_ ctx]
        (schedule-date-value-update ctx))
