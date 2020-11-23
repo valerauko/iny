@@ -6,6 +6,10 @@
 
 Experiments with Netty from Clojure.
 
+## Usage
+
+Everything before version 1.0.0 is to be considered experimental, buggy and unstable.
+
 ## Goals
 
 A HTTP server library based on Netty to replace [Aleph](https://github.com/ztellman/aleph/).
