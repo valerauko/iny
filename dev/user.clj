@@ -31,7 +31,7 @@
 
 (defn start-server
   [& _]
-  ; (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/SIMPLE)
+  (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
   (def stop-server (server/server
                     (wrap-defaults my-handler (assoc-in
                                                api-defaults

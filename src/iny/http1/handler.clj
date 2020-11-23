@@ -28,14 +28,32 @@
             HttpHeaderNames
             HttpResponseStatus
             DefaultHttpContent
-            DefaultHttpResponse]))
+            DefaultHttpResponse]
+           [io.netty.handler.codec.http.multipart
+            DefaultHttpDataFactory
+            HttpPostRequestDecoder
+            InterfaceHttpData
+            InterfaceHttpData$HttpDataType
+            Attribute
+            FileUpload]))
+
+(defmacro cond-let
+  [& clauses]
+  (when clauses
+    (list 'if-let (first clauses)
+          (if (next clauses)
+            (second clauses)
+            (throw (IllegalArgumentException.
+                    "cond-let requires an even number of forms")))
+          (cons 'iny.http1.handler/cond-let (next (next clauses))))))
 
 (defn ^ChannelFuture write-response
   [^ChannelHandlerContext ctx
    ^HttpResponse          head
    ^HttpContent           body]
   (.write ctx head (.voidPromise ctx))
-  (when (pos? (-> body (.content) (.readableBytes)))
+  ;; want to use some-> here but then pos? gets boxed...
+  (when (and body (-> body (.content) (.readableBytes) (pos?)))
     (.write ctx body (.voidPromise ctx)))
   (.writeAndFlush ctx LastHttpContent/EMPTY_LAST_CONTENT))
 
@@ -109,10 +127,33 @@
   [^HttpRequest req]
   (= (content-length req) 0))
 
+(def data-factory
+  (DefaultHttpDataFactory. DefaultHttpDataFactory/MINSIZE))
+
+(defprotocol LogUpload
+  (log-it [_]))
+
+(extend-protocol LogUpload
+  Attribute
+  (log-it [^Attribute attr]
+   (log/info {(.getName attr) (.getValue attr)}))
+
+  FileUpload
+  (log-it [^FileUpload upload]
+   (log/info
+    {:field-name (.getName upload)
+     :filename (.getFilename upload)
+     :content-type (.getContentType upload)
+     :contents (if (.isInMemory upload)
+                 (.getByteBuf upload)
+                 (.getFile upload))
+     :size (.definedLength upload)})))
+
 (defn ^ChannelInboundHandler http-handler
   [user-handler]
   (let [body-buf (atom nil)
-        request (atom nil)]
+        request (atom nil)
+        body-decoder (atom nil)]
     (reify
       ChannelInboundHandler
 
@@ -121,7 +162,8 @@
       (exceptionCaught [_ ctx ex]
         (log/error ex)
         (when-not (instance? IOException ex)
-          (respond-500 ctx ex)))
+          (respond-500 ctx ex))
+        (.close ctx))
       (channelRegistered [_ ctx]
         (schedule-date-value-update ctx))
       (channelUnregistered [_ ctx])
@@ -130,13 +172,22 @@
       (channelRead [_ ctx msg]
         (cond
           (instance? HttpRequest msg)
-            (if (or (get? msg) (content-known-empty? msg))
+            (cond
+              ;; request without body
+              (or (get? msg) (content-known-empty? msg))
               (let [ftr (->> msg
                              (netty->ring-request ctx (->buffer nil))
                              (user-handler)
                              (respond ctx))]
                 (when-not (HttpUtil/isKeepAlive msg)
                   (.addListener ftr ChannelFutureListener/CLOSE)))
+              ;; multipart
+              (HttpPostRequestDecoder/isMultipart msg)
+              (let [decoder-instance (HttpPostRequestDecoder. data-factory msg)]
+                (reset! request (netty->ring-request ctx (->buffer nil) msg))
+                (reset! body-decoder decoder-instance))
+              ;; non-multipart request with body
+              :else
               (let [allocator (.alloc ctx)
                     buffer (if-let [len (content-length msg)]
                              (.buffer allocator len)
@@ -144,15 +195,28 @@
                 (reset! request (netty->ring-request ctx buffer msg))
                 (reset! body-buf buffer)))
           (instance? HttpContent msg)
-            (when-let [^ByteBuf buffer @body-buf]
-              (.writeBytes buffer (.content ^HttpContent msg))
-              (when (instance? LastHttpContent msg)
-                (->> @request
-                     (user-handler)
-                     (respond ctx))
-                (release buffer)
-                (reset! request nil)
-                (reset! body-buf nil)))
+            (cond-let
+              [^ByteBuf buffer @body-buf]
+              (do
+                (.writeBytes buffer (.content ^HttpContent msg))
+                (when (instance? LastHttpContent msg)
+                  (->> @request
+                       (user-handler)
+                       (respond ctx))
+                  (release buffer)
+                  (reset! request nil)
+                  (reset! body-buf nil)))
+              [^HttpPostRequestDecoder decoder @body-decoder]
+              (do
+                (.offer decoder ^HttpContent msg)
+                (when (instance? LastHttpContent msg)
+                  (->> @request
+                       (user-handler)
+                       (respond ctx))
+                  (doseq [data (.getBodyHttpDatas decoder)]
+                    (log-it data))
+                  (.destroy decoder)
+                  (reset! body-decoder nil))))
           ; :else
           ;   (log/info (class msg))
           )
