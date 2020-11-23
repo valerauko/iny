@@ -4,7 +4,7 @@
             [iny.http.date :refer [schedule-date-value-update]]
             [iny.http.method :refer [http-methods]]
             [iny.http.status :refer [->status]]
-            [iny.http.body :refer [->buffer]]
+            [iny.http.body :refer [->buffer release]]
             [iny.http2.headers :refer [->headers]])
   (:import [java.net
             InetSocketAddress]
@@ -38,7 +38,8 @@
   [^ChannelHandlerContext ctx
    ^Http2HeadersFrame     req
    ^Http2Headers          headers
-   ^String          path
+   ^ByteBuf               body
+   ^String                path
    q-at]
   :uri            (if (not (neg? ^int q-at))
                     (.substring path 0 q-at)
@@ -48,6 +49,7 @@
   :headers        headers
   :request-method (request-method headers)
   :scheme         (.scheme headers)
+  :body           (ByteBufInputStream. body false)
   :server-name    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getHostName))
   :server-port    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getPort))
   :remote-addr    (some-> ctx (.channel) ^InetSocketAddress (.remoteAddress) (.getAddress) (.getHostAddress))
@@ -55,6 +57,7 @@
 
 (defn netty->ring-request
   [^ChannelHandlerContext ctx
+   ^ByteBuf               body
    ^Http2HeadersFrame     req]
   (let [headers (.headers req)
         path (.toString (.path headers))]
@@ -91,6 +94,19 @@
                              (.stream stream))]
         (.writeAndFlush ctx last-frame)))))
 
+(defn content-length'
+  [^Http2HeadersFrame req]
+  (when-let [header-value (-> req
+                              (.headers)
+                              (.get HttpHeaderNames/CONTENT_LENGTH))]
+    (try
+      (Long/parseLong header-value)
+      (catch Throwable e
+        (log/debug "Wrong content length header value" e)
+        nil))))
+
+(def content-length (memoize content-length'))
+
 (defn http2-handler
   [user-handler frame-codec]
   (reify
@@ -116,16 +132,27 @@
       (cond
         (instance? Http2HeadersFrame msg)
           (let [stream (.stream ^Http2HeadersFrame msg)]
-            (if (.isEndStream ^Http2HeadersFrame msg)
+            (cond
+              ;; request without body
+              (.isEndStream ^Http2HeadersFrame msg)
               (->> msg
-                   (netty->ring-request ctx)
+                   (netty->ring-request ctx (->buffer nil))
                    (user-handler)
-                   (respond ctx stream))))
-        ; (instance? Http2DataFrame msg)
-        ;   ,,,
+                   (respond ctx stream))
+              ;; request with body
+              ;; netty's HttpPostRequestDecoder can't handle http/2 frames
+              :else
+              (let [allocator (.alloc ctx)
+                    buffer (if-let [len (content-length msg)]
+                             (.buffer allocator len)
+                             (.buffer allocator))]
+                nil)))
+        (instance? Http2DataFrame msg)
+          (log/debug msg)
         ; :else
         ;   (log/info (class msg))
-        ))
+        )
+      (release msg))
     (channelReadComplete [_ ctx])
     (userEventTriggered [_ ctx event])
     (channelWritabilityChanged [_ ctx])))
