@@ -55,8 +55,7 @@
   :body           (ByteBufInputStream. body false)
   :server-name    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getHostName))
   :server-port    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getPort))
-  :remote-addr    (some-> ctx (.channel) ^InetSocketAddress (.remoteAddress) (.getAddress) (.getHostAddress))
-  :iny/keep-alive (HttpUtil/isKeepAlive req))
+  :remote-addr    (some-> ctx (.channel) ^InetSocketAddress (.remoteAddress) (.getAddress) (.getHostAddress)))
 
 (defn netty->ring-request
   [^ChannelHandlerContext ctx
