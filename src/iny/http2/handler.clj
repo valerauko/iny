@@ -109,50 +109,52 @@
 
 (defn http2-handler
   [user-handler frame-codec]
-  (reify
-    ChannelInboundHandler
+  (let [body-buf (atom nil)
+        request (atom nil)]
+    (reify
+      ChannelInboundHandler
 
-    (handlerAdded
-      [_ ctx]
-      (let [pipeline (.pipeline ctx)]
-        ;; add bidi codec handler to the pipeline if not present yet
-        (when-not (.get pipeline Http2FrameCodec)
-          (.addBefore pipeline (.name ctx) nil frame-codec))))
-    (handlerRemoved [_ ctx])
-    (exceptionCaught
-      [_ ctx ex]
-      (log/warn ex)
-      (.close ctx))
-    (channelRegistered [_ ctx]
-      (schedule-date-value-update ctx))
-    (channelUnregistered [_ ctx])
-    (channelActive [_ ctx])
-    (channelInactive [_ ctx])
-    (channelRead [_ ctx msg]
-      (cond
-        (instance? Http2HeadersFrame msg)
-          (let [stream (.stream ^Http2HeadersFrame msg)]
-            (cond
-              ;; request without body
-              (.isEndStream ^Http2HeadersFrame msg)
-              (->> msg
-                   (netty->ring-request ctx (->buffer nil))
-                   (user-handler)
-                   (respond ctx stream))
-              ;; request with body
-              ;; netty's HttpPostRequestDecoder can't handle http/2 frames
-              :else
-              (let [allocator (.alloc ctx)
-                    buffer (if-let [len (content-length msg)]
-                             (.buffer allocator len)
-                             (.buffer allocator))]
-                nil)))
-        (instance? Http2DataFrame msg)
-          (log/debug msg)
-        ; :else
-        ;   (log/info (class msg))
-        )
-      (release msg))
-    (channelReadComplete [_ ctx])
-    (userEventTriggered [_ ctx event])
-    (channelWritabilityChanged [_ ctx])))
+      (handlerAdded
+       [_ ctx]
+       (let [pipeline (.pipeline ctx)]
+         ;; add bidi codec handler to the pipeline if not present yet
+         (when-not (.get pipeline Http2FrameCodec)
+           (.addBefore pipeline (.name ctx) nil frame-codec))))
+      (handlerRemoved [_ ctx])
+      (exceptionCaught
+       [_ ctx ex]
+       (log/warn ex)
+       (.close ctx))
+      (channelRegistered [_ ctx]
+                         (schedule-date-value-update ctx))
+      (channelUnregistered [_ ctx])
+      (channelActive [_ ctx])
+      (channelInactive [_ ctx])
+      (channelRead [_ ctx msg]
+                   (cond
+                     (instance? Http2HeadersFrame msg)
+                     (let [stream (.stream ^Http2HeadersFrame msg)]
+                       (cond
+                         ;; request without body
+                         (.isEndStream ^Http2HeadersFrame msg)
+                         (->> msg
+                              (netty->ring-request ctx (->buffer nil))
+                              (user-handler)
+                              (respond ctx stream))
+                         ;; request with body
+                         ;; netty's HttpPostRequestDecoder can't handle http/2 frames
+                         :else
+                         (let [allocator (.alloc ctx)
+                               buffer (if-let [len (content-length msg)]
+                                        (.buffer allocator len)
+                                        (.buffer allocator))]
+                           nil)))
+                     (instance? Http2DataFrame msg)
+                     (log/debug msg)
+                     ; :else
+                     ;   (log/info (class msg))
+                     )
+                   (release msg))
+      (channelReadComplete [_ ctx])
+      (userEventTriggered [_ ctx event])
+      (channelWritabilityChanged [_ ctx]))))
