@@ -189,6 +189,7 @@
               ;; non-multipart request with body
               :else
               (let [allocator (.alloc ctx)
+                    ;; TODO: consider request size limitations (memory use)
                     buffer (if-let [len (content-length msg)]
                              (.buffer allocator len)
                              (.buffer allocator))]
@@ -213,6 +214,7 @@
                   (->> @request
                        (user-handler)
                        (respond ctx))
+                  ;; TODO: doesn't actually do anything just yet
                   (doseq [data (.getBodyHttpDatas decoder)]
                     (log-it data))
                   (.destroy decoder)
