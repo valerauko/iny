@@ -50,7 +50,6 @@
                     [criterium "0.4.5"]
                     [byte-streams "0.2.4"]
                     [ring/ring-defaults "0.3.2"]
-                    [aleph "0.4.7-alpha5"]
                     [metosin/jsonista "0.2.6"]
                     [metosin/pohjavirta "0.0.1-alpha7"]
                     [com.clojure-goes-fast/clj-async-profiler "0.4.1"]]}})
