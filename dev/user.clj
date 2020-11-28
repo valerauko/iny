@@ -16,8 +16,17 @@
 
 (defn run-test
   [test-var]
-  (require :reload test-var)
-  (run-tests test-var))
+  (if-let [ns-str (namespace test-var)]
+    (let [ns-sym (symbol ns-str)
+          name-sym (symbol (name test-var))]
+      (require :reload ns-sym)
+      (doseq [test-sym (keys (ns-interns ns-sym))]
+        (when-not (= test-sym name-sym)
+          (ns-unmap ns-sym test-sym)))
+      (run-tests ns-sym))
+    (do
+      (require :reload test-var)
+      (run-tests test-var))))
 
 (defn my-handler [{:keys [uri params body] :as request}]
   (.reset ^java.io.InputStream body)
