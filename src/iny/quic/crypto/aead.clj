@@ -29,3 +29,31 @@
                                          ^long byte-mask)]
                 (aset-byte aggr i masked-byte)
                 aggr)))))
+
+(defn ^"[B" generate-nonce
+  [^bytes init-vec ^bytes packet-number]
+  (let [iv-len (alength init-vec)
+        nonce (byte-array iv-len)]
+    (System/arraycopy packet-number 0
+                      nonce (- iv-len 4) 4)
+    (doseq [i (range iv-len)]
+      (aset-byte nonce i (bit-xor (aget nonce i) (aget init-vec i))))
+    nonce))
+
+(defn ^"[B" process
+  [^bytes source ^bytes packet-number ^bytes aad ^bytes key ^bytes iv mode]
+  (let [secret-key (SecretKeySpec. key 0 (alength key) "AES")
+        nonce (generate-nonce iv packet-number)
+        spec (GCMParameterSpec. 128 nonce)
+        cipher (doto (Cipher/getInstance "AES/GCM/NoPadding" "SunJCE")
+                     (.init ^int mode secret-key spec))]
+    (.updateAAD cipher aad)
+    (.doFinal cipher source)))
+
+(defn ^"[B" open
+  [source packet-number aad key iv]
+  (process source packet-number aad key iv Cipher/DECRYPT_MODE))
+
+(defn ^"[B" seal
+  [source packet-number aad key iv]
+  (process source packet-number aad key iv Cipher/ENCRYPT_MODE))

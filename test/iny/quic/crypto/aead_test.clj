@@ -7,7 +7,7 @@
            [io.netty.buffer
             ByteBufUtil]))
 
-(deftest initial-aead-test
+(deftest initial-aead-headers-test
   ;; values from https://tools.ietf.org/html/draft-ietf-quic-tls-29#appendix-A.2
   (let [conn-id (ByteBufUtil/decodeHexDump
                  "8394c8f03e515708")
@@ -40,3 +40,22 @@
               decrypted (process-headers sample encrypted server-key)]
           (is (= (ByteBufUtil/hexDump decrypted)
                  "c10001")))))))
+
+(deftest initial-aead-seal-open
+  (let [conn-id (byte-array [0x12 0x34 0x56 0x78 0x90 0xab 0xcd 0xef])
+        keys (secret/initial-secrets conn-id)
+        message (.getBytes "as gregor samsa awoke one morning")
+        aad (.getBytes "aad")]
+    (let [iv (.extract (get-in keys [:client :iv]))
+          key (.extract (get-in keys [:client :key]))
+          packet-no (byte-array [0x00 0x00 0x00 0x2a])
+          encrypted (str "3bb69a220b556138dbf92c318f05af95"
+                         "f8cf3805c4a5cafa6b9b97cd96b5e73b"
+                         "8d4da7d7fccd645551c80bb1a79567fbfb")]
+      (testing "Client seal"
+        (let [result (seal message packet-no aad key iv)]
+          (is (= (ByteBufUtil/hexDump result) encrypted))))
+      (testing "Server open"
+        (let [result (open (ByteBufUtil/decodeHexDump encrypted)
+                           packet-no aad key iv)]
+          (is (= (String. message) (String. result))))))))
