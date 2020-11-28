@@ -26,6 +26,6 @@
                                 mask-byte)
                     subject-byte (aget subject i)
                     masked-byte (bit-xor subject-byte
-                                         byte-mask)]
+                                         ^long byte-mask)]
                 (aset-byte aggr i masked-byte)
                 aggr)))))

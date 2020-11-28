@@ -13,13 +13,30 @@
                  "8394c8f03e515708")
         keys (secret/initial-secrets conn-id)
         client-key (.extract (get-in keys [:client :pn]))
-        server-key (.extract (get-in keys [:server :pn]))
-        sample (ByteBufUtil/decodeHexDump
-                "fb66bc5f93032b7ddd89fe0ff15d9c4f")
-        header (ByteBufUtil/decodeHexDump "c300000002")]
-    (testing "Client encrypt"
-      (let [encrypted (process-headers sample header client-key)]
-        (is (= (aget encrypted 0)
-               (byte 0xc5)))
-        (is (= (ByteBufUtil/hexDump (byte-array (rest encrypted)))
-               (ByteBufUtil/hexDump (byte-array [0x4a 0x95 0x24 0x5b]))))))))
+        server-key (.extract (get-in keys [:server :pn]))]
+    (let [sample (ByteBufUtil/decodeHexDump
+                  "fb66bc5f93032b7ddd89fe0ff15d9c4f")
+          header (ByteBufUtil/decodeHexDump "c300000002")
+          expected "c54a95245b"]
+      (testing "Client encrypt"
+        (let [encrypted (process-headers sample header client-key)]
+          (is (= (ByteBufUtil/hexDump encrypted)
+                 expected))))
+      (testing "Server decrypt"
+        (let [encrypted (ByteBufUtil/decodeHexDump expected)
+              decrypted (process-headers sample encrypted client-key)]
+          (is (= (ByteBufUtil/hexDump decrypted)
+                 "c300000002")))))
+    (let [sample (ByteBufUtil/decodeHexDump
+                  "823a5d3a1207c86ee49132824f046524")
+          header (ByteBufUtil/decodeHexDump "c10001")
+          expected "caaaf2"]
+      (testing "Server encrypt"
+        (let [encrypted (process-headers sample header server-key)]
+          (is (= (ByteBufUtil/hexDump encrypted)
+                 expected))))
+      (testing "Client decrypt"
+        (let [encrypted (ByteBufUtil/decodeHexDump expected)
+              decrypted (process-headers sample encrypted server-key)]
+          (is (= (ByteBufUtil/hexDump decrypted)
+                 "c10001")))))))
