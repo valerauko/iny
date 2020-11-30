@@ -5,9 +5,11 @@
             [iny.http.method :refer [http-methods]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer release]]
-            [iny.http2.headers :refer [->headers]])
+            [iny.http2.headers :refer [->headers headers->map]])
   (:import [java.net
             InetSocketAddress]
+           [io.netty.util
+            AsciiString]
            [io.netty.buffer
             ByteBuf
             ByteBufInputStream]
@@ -21,6 +23,7 @@
             HttpUtil
             HttpResponseStatus]
            [io.netty.handler.codec.http2
+            Http2Error
             Http2FrameCodec
             Http2FrameStream
             ;; frames
@@ -28,6 +31,7 @@
             Http2HeadersFrame
             DefaultHttp2DataFrame
             DefaultHttp2HeadersFrame
+            DefaultHttp2ResetFrame
             ;;
             Http2Headers
             Http2Headers$PseudoHeaderName
@@ -49,7 +53,7 @@
                     path)
   :query-string   (if (not (neg? ^int q-at))
                     (.substring path q-at))
-  :headers        headers
+  :headers        (headers->map headers)
   :request-method (str (request-method headers))
   :scheme         (-> headers (.scheme) (str) (keyword))
   :body           (ByteBufInputStream. body false)
@@ -100,14 +104,20 @@
   [^Http2HeadersFrame req]
   (when-let [header-value (-> req
                               (.headers)
-                              (.get "Content-Length"))]
+                              (.get "content-length"))]
     (try
-      (Long/parseLong header-value)
+      (.parseLong ^AsciiString header-value)
       (catch Throwable e
         (log/debug "Wrong content length header value" e)
         nil))))
 
 (def content-length (memoize content-length'))
+
+(defn send-away
+  [^ChannelHandlerContext ctx ^Http2FrameStream stream]
+  (let [frame (doto (DefaultHttp2ResetFrame. Http2Error/PROTOCOL_ERROR)
+                    (.stream stream))]
+    (.writeAndFlush ctx frame)))
 
 (defn http2-handler
   [user-handler frame-codec]
@@ -139,28 +149,47 @@
            (cond
              ;; request without body
              (.isEndStream ^Http2HeadersFrame msg)
-             (->> msg
-                  (netty->ring-request ctx (->buffer nil))
-                  ^IPersistentMap (user-handler)
-                  (respond ctx stream))
+             (if-let [in-progress (get @requests stream)]
+               ;; handles the case when there are trailing headers
+               ;; that come after all the data frames are received
+               (let [[request ^ByteBuf buffer expected-length] in-progress]
+                 (if (or (nil? expected-length)
+                         (= expected-length (.readableBytes buffer)))
+                   (->> ^Http2HeadersFrame msg
+                        (.headers)
+                        (headers->map)
+                        (update request :headers merge)
+                        ^IPersistentMap (user-handler)
+                        (respond ctx stream))
+                   (send-away ctx stream))
+                 (release buffer))
+               ;; this is the "hot path," body-less GET requests
+               (->> msg
+                    (netty->ring-request ctx (->buffer nil))
+                    ^IPersistentMap (user-handler)
+                    (respond ctx stream)))
              ;; request with body
              ;; netty's HttpPostRequestDecoder can't handle http/2 frames
              :else
              (let [allocator (.alloc ctx)
-                   buffer (if-let [len (content-length msg)]
+                   len (content-length msg)
+                   buffer (if len
                             (.buffer allocator len)
                             (.buffer allocator))]
                (swap! requests assoc stream
-                      [(netty->ring-request ctx buffer msg) buffer]))))
+                      [(netty->ring-request ctx buffer msg) buffer len]))))
          ;; body frames
          (instance? Http2DataFrame msg)
          (let [stream (.stream ^Http2DataFrame msg)
-               [request ^ByteBuf buffer] (get @requests stream)]
+               [request ^ByteBuf buffer expected-length] (get @requests stream)]
            (.writeBytes buffer (.content ^Http2DataFrame msg))
            (when (.isEndStream ^Http2DataFrame msg)
-             (->> request
-                  ^IPersistentMap (user-handler)
-                  (respond ctx stream))
+             (if (or (nil? expected-length)
+                     (= expected-length (.readableBytes buffer)))
+               (->> request
+                    ^IPersistentMap (user-handler)
+                    (respond ctx stream))
+               (send-away ctx stream))
              (release buffer)
              (swap! requests assoc stream nil))))
        (release msg))
