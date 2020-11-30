@@ -100,7 +100,7 @@
                              (.stream stream))]
         (.writeAndFlush ctx last-frame)))))
 
-(defn content-length'
+(defn content-length
   [^Http2HeadersFrame req]
   (when-let [header-value (-> req
                               (.headers)
@@ -110,8 +110,6 @@
       (catch Throwable e
         (log/debug "Wrong content length header value" e)
         nil))))
-
-(def content-length (memoize content-length'))
 
 (defn send-away
   [^ChannelHandlerContext ctx ^Http2FrameStream stream]

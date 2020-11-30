@@ -110,7 +110,7 @@
    ^HttpRequest           req]
   (->RingRequest ctx req body (.indexOf (.uri req) (int 63))))
 
-(defn content-length'
+(defn content-length
   [^HttpRequest req]
   (when-let [header-value (-> req
                               (.headers)
@@ -120,8 +120,6 @@
       (catch Throwable e
         (log/debug "Wrong content length header value" e)
         nil))))
-
-(def content-length (memoize content-length'))
 
 (defn content-known-empty?
   [^HttpRequest req]
