@@ -34,7 +34,7 @@
         (if (.hasNext i)
           (let [elem ^Map$Entry (.next i)]
             (.set headers
-                  (-> elem .getKey .toString .toLowerCase)
+                  (-> elem .getKey (name) .toString .toLowerCase)
                   (.toString (.getValue elem)))
             (recur))))
       headers)))
