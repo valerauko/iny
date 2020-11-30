@@ -5,6 +5,8 @@
             Map$Entry]
            [clojure.lang
             PersistentArrayMap]
+           [io.netty.util
+            AsciiString]
            [io.netty.handler.codec.http
             HttpHeaderNames]
            [io.netty.handler.codec.http2
@@ -14,12 +16,13 @@
   (^io.netty.handler.codec.http2.DefaultHttp2Headers ->headers [_]))
 
 ;; DefaultHttp2Headers.copy returns a DefaultHeaders instance
+(let [ver-str AsciiString. (str "iny/" version)]
 (defn ^DefaultHttp2Headers headers-with-date
   []
   (doto (DefaultHttp2Headers. false)
-        (.set HttpHeaderNames/SERVER (str "iny/" version))
+        (.set HttpHeaderNames/SERVER ver-str)
         (.set HttpHeaderNames/CONTENT_TYPE "text/plain")
-        (.set HttpHeaderNames/DATE (date-header-value))))
+        (.set HttpHeaderNames/DATE (date-header-value)))))
 
 (extend-protocol Headers
   nil
