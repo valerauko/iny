@@ -41,3 +41,12 @@
                   (.toString (.getValue elem)))
             (recur))))
       headers)))
+
+(defn headers->map
+  [headers]
+  (persistent!
+   (reduce-kv
+    (fn [aggr ^AsciiString k ^AsciiString v]
+      (assoc! aggr (.toString (.toLowerCase k)) (.toString v)))
+    (transient {})
+    (into {} headers))))
