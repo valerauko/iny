@@ -119,7 +119,10 @@
 
 (defn http2-handler
   [user-handler frame-codec]
-  (let [requests (atom {})]
+  (let [;; TODO: deal with multiple streams uploading parallel
+        ring-req (atom nil)
+        body-buf (atom nil)
+        exp-len (atom nil)]
     (reify
       ChannelInboundHandler
 
@@ -147,10 +150,11 @@
            (cond
              ;; request without body
              (.isEndStream ^Http2HeadersFrame msg)
-             (if-let [in-progress (get @requests stream)]
+             (if-let [request @ring-req]
                ;; handles the case when there are trailing headers
                ;; that come after all the data frames are received
-               (let [[request ^ByteBuf buffer expected-length] in-progress]
+               (let [buffer ^ByteBuf @body-buf
+                     expected-length @exp-len]
                  (if (or (nil? expected-length)
                          (= expected-length (.readableBytes buffer)))
                    (->> ^Http2HeadersFrame msg
@@ -174,12 +178,15 @@
                    buffer (if len
                             (.buffer allocator len)
                             (.buffer allocator))]
-               (swap! requests assoc stream
-                      [(netty->ring-request ctx buffer msg) buffer len]))))
+               (reset! ring-req (netty->ring-request ctx buffer msg))
+               (reset! body-buf buffer)
+               (reset! exp-len len))))
          ;; body frames
          (instance? Http2DataFrame msg)
          (let [stream (.stream ^Http2DataFrame msg)
-               [request ^ByteBuf buffer expected-length] (get @requests stream)]
+               request @ring-req
+               buffer ^ByteBuf @body-buf
+               expected-length @exp-len]
            (.writeBytes buffer (.content ^Http2DataFrame msg))
            (when (.isEndStream ^Http2DataFrame msg)
              (if (or (nil? expected-length)
@@ -189,7 +196,9 @@
                     (respond ctx stream))
                (send-away ctx stream))
              (release buffer)
-             (swap! requests assoc stream nil))))
+             (reset! ring-req nil)
+             (reset! body-buf nil)
+             (reset! exp-len nil))))
        (release msg))
       (channelReadComplete [_ ctx])
       (userEventTriggered [_ ctx event])
