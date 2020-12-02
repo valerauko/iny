@@ -43,11 +43,9 @@
 (defn start-server
   [& _]
   (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
-  (def stop-server (server/server
-                    (wrap-defaults my-handler (assoc-in
-                                               api-defaults
-                                               [:params :multipart]
-                                               true))
+  (def stop-server (server/server my-handler
+                    ; (wrap-defaults my-handler
+                    ;  (assoc-in api-defaults [:params :multipart] true))
                     )))
 
 (defn start-poh
