@@ -70,35 +70,27 @@
     (->RingRequest ctx req headers body path
                    (.indexOf path (int 63)))))
 
-(let [empty-last-data (DefaultHttp2DataFrame. true)]
-  (defn respond
-    [^ChannelHandlerContext ctx
-     ^Http2FrameStream stream
-     {:keys [body headers status]}]
-    (let [status (->status status)
-          buffer (when body (->buffer body ctx))
-          headers (doto (->headers headers)
-                        (.set (.value Http2Headers$PseudoHeaderName/STATUS)
-                              (.codeAsText status))
-                        (.set HttpHeaderNames/CONTENT_LENGTH
-                              (if buffer
-                                (String/valueOf (.readableBytes buffer))
-                                "0")))
-          headers-frame (doto (DefaultHttp2HeadersFrame. headers)
-                              (.stream stream))]
-      (.write ctx headers-frame (.voidPromise ctx))
-      ;; can't write with VoidPromise, because then writeAndFlush
-      ;; starts generating massive amounts of IllegalStateExceptions.
-      ;; cause: Http2ConnectionHandler#closeStream tries to add
-      ;; a listener to the future, which fails automatically if the
-      ;; future is a VoidPromise.
-      (when body
-        (let [data-frame (doto (DefaultHttp2DataFrame. buffer false)
-                               (.stream stream))]
-          (.write ctx data-frame)))
-      (let [last-frame (doto (.copy empty-last-data)
+(defn respond
+  [^ChannelHandlerContext ctx
+   ^Http2FrameStream stream
+   {:keys [body headers status]}]
+  (let [status (->status status)
+        buffer (when body (->buffer body ctx))
+        headers (doto (->headers headers)
+                      (.set (.value Http2Headers$PseudoHeaderName/STATUS)
+                            (.codeAsText status))
+                      (.set HttpHeaderNames/CONTENT_LENGTH
+                            (if buffer
+                              (String/valueOf (.readableBytes buffer))
+                              "0")))
+        headers-frame (doto (DefaultHttp2HeadersFrame. headers)
+                            (.stream stream))]
+    (.write ctx headers-frame (.voidPromise ctx))
+    (if body
+      (let [data-frame (doto (DefaultHttp2DataFrame. buffer true)
                              (.stream stream))]
-        (.writeAndFlush ctx last-frame)))))
+        (.writeAndFlush ctx data-frame))
+      (.flush ctx))))
 
 (defn content-length
   [^Http2HeadersFrame req]
