@@ -21,7 +21,6 @@
     []
     (doto (DefaultHttp2Headers. false)
           (.set HttpHeaderNames/SERVER ver-str)
-          (.set HttpHeaderNames/CONTENT_TYPE "text/plain")
           (.set HttpHeaderNames/DATE (date-header-value)))))
 
 (extend-protocol Headers

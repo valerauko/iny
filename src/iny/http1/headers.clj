@@ -13,8 +13,7 @@
   (^io.netty.handler.codec.http.DefaultHttpHeaders ->headers [_]))
 
 (let [base-headers (doto (DefaultHttpHeaders. false)
-                         (.add HttpHeaderNames/SERVER (str "iny/" version))
-                         (.add HttpHeaderNames/CONTENT_TYPE "text/plain"))]
+                         (.add HttpHeaderNames/SERVER (str "iny/" version)))]
   (defn ^DefaultHttpHeaders headers-with-date
     []
     (doto (.copy ^DefaultHttpHeaders base-headers)
