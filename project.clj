@@ -1,19 +1,19 @@
-(defproject social.kitsune/iny "0.0.1"
+(defproject social.kitsune/iny "0.0.2"
   :description "Performant Clojure HTTP server"
   :url "https://github.com/valerauko/iny"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :dependencies [[org.clojure/clojure "1.10.2-alpha1"]
+  :dependencies [[org.clojure/clojure "1.10.3"]
                  [org.clojure/tools.logging "1.1.0"
                   :exclusions [org.clojure/clojure]]
                  [potemkin "0.4.5"]
-                 [io.netty/netty-common "4.1.54.Final"]
-                 [io.netty/netty-buffer "4.1.54.Final"]
-                 [io.netty/netty-transport "4.1.54.Final"]
-                 [io.netty/netty-codec "4.1.54.Final"]
-                 [io.netty/netty-handler "4.1.54.Final"]
-                 [io.netty/netty-codec-http "4.1.54.Final"]
-                 [io.netty/netty-codec-http2 "4.1.54.Final"]]
+                 [io.netty/netty-common "4.1.63.Final"]
+                 [io.netty/netty-buffer "4.1.63.Final"]
+                 [io.netty/netty-transport "4.1.63.Final"]
+                 [io.netty/netty-codec "4.1.63.Final"]
+                 [io.netty/netty-handler "4.1.63.Final"]
+                 [io.netty/netty-codec-http "4.1.63.Final"]
+                 [io.netty/netty-codec-http2 "4.1.63.Final"]]
 
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
 
@@ -25,6 +25,7 @@
              :analyze {:aot :all
                        :jvm-opts ["-agentlib:native-image-agent=config-output-dir=./resources"]}
              :dev {:source-paths ["dev"]
+                   :plugins [[lein-ancient "0.7.0"]]
                    :jvm-opts
                    ["-server"
                     "-Xms2G"
@@ -43,13 +44,13 @@
                      *unchecked-math* :warn-on-boxed}
                    :dependencies
                    [[org.clojure/test.check "1.1.0"]
-                    [org.clojure/tools.namespace "1.0.0"]
-                    [io.netty/netty-transport-native-epoll "4.1.54.Final"
+                    [org.clojure/tools.namespace "1.1.0"]
+                    [io.netty/netty-transport-native-epoll "4.1.63.Final"
                      :classifier "linux-x86_64"]
                     [ch.qos.logback/logback-classic "1.2.3"]
-                    [criterium "0.4.5"]
+                    [criterium "0.4.6"]
                     [byte-streams "0.2.4"]
                     [ring/ring-defaults "0.3.2"]
-                    [metosin/jsonista "0.2.6"]
+                    [metosin/jsonista "0.3.2"]
                     [metosin/pohjavirta "0.0.1-alpha7"]
-                    [com.clojure-goes-fast/clj-async-profiler "0.4.1"]]}})
+                    [com.clojure-goes-fast/clj-async-profiler "0.5.0"]]}})
