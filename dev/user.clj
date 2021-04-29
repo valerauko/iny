@@ -3,16 +3,19 @@
             [clojure.test :refer [run-tests]]
             [clojure.repl :refer :all]
             [clojure.pprint :as pp]
+            [mount.core :refer [defstate start stop]]
             [clj-async-profiler.core :as prof]
             [jsonista.core :as json]
-            [iny.server :as server]
-            [pohjavirta.server :as poh]
-            [ring.middleware.defaults :refer [wrap-defaults api-defaults]])
+            [iny.server :as server])
+            ; [pohjavirta.server :as poh])
   (:import [io.netty.util
             ResourceLeakDetector
-            ResourceLeakDetector$Level]))
+            ResourceLeakDetector$Level]
+           [io.netty.buffer
+            ByteBufInputStream]))
 
 (set-refresh-dirs "dev" "src/iny" "resources")
+(ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
 (defn run-test
   [test-var]
@@ -31,25 +34,33 @@
       (run-tests test-var))))
 
 (defn my-handler [{:keys [uri params body] :as request}]
-  (.reset ^java.io.InputStream body)
   {:status 200
-   :body (json/write-value-as-bytes {:message (str "Hello from " uri)
+   :body (json/write-value-as-bytes {:message (str "Hello from " uri " using "
+                                                   (iny.native/socket-chan))
                                      :params params
-                                     :body (slurp body)})
+                                     :body nil})
    :headers {"content-type" "application/json"}})
 
-(def stop-server nil)
+(defn reload
+  []
+  (stop)
+  (refresh)
+  (start))
 
-(defn start-server
-  [& _]
-  (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
-  (def stop-server (server/server my-handler
-                    ; (wrap-defaults my-handler
-                    ;  (assoc-in api-defaults [:params :multipart] true))
-                    )))
+(defstate perf-files
+  :start
+  (prof/serve-files 8081)
+  :stop
+  (.stop perf-files 1))
 
-(defn start-poh
-  [& _]
-  (let [server (poh/create #'my-handler)]
-    (def stop-server #(poh/stop server))
-    (poh/start server)))
+(defstate server
+  :start
+  (server/server my-handler)
+  :stop
+  (server))
+
+; (defstate poh
+;   :start
+;   (poh/create #'my-handler)
+;   :stop
+;   (poh/stop poh))

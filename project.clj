@@ -47,10 +47,9 @@
                     [org.clojure/tools.namespace "1.1.0"]
                     [io.netty/netty-transport-native-epoll "4.1.63.Final"
                      :classifier "linux-x86_64"]
+                    [mount "0.1.16"]
+                    [metosin/jsonista "0.3.2"]
                     [ch.qos.logback/logback-classic "1.2.3"]
                     [criterium "0.4.6"]
-                    [byte-streams "0.2.4"]
-                    [ring/ring-defaults "0.3.2"]
-                    [metosin/jsonista "0.3.2"]
-                    [metosin/pohjavirta "0.0.1-alpha7"]
+                    ; [metosin/pohjavirta "0.0.1-alpha7"]
                     [com.clojure-goes-fast/clj-async-profiler "0.5.0"]]}})
