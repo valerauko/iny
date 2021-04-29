@@ -1,0 +1,20 @@
+version: '3'
+services:
+  server:
+    image: clojure:openjdk-11-lein-2.9.5-buster
+    working_dir: /usr/local/iny
+    command: lein repl :headless :host 0.0.0.0 :port 42001
+    ports:
+      - 3000:3000
+      - 8080:8080
+      - 42001:42001
+    volumes:
+      - .:/usr/local/iny
+      - maven:/root/.m2
+    ## uncomment these when profiling
+    # security_opt:
+    #   # more specifically profiling only needs the perf perk but meh
+    #   - seccomp=unconfined
+
+volumes:
+  maven:
