@@ -52,7 +52,7 @@
   :start
   (prof/serve-files 8081)
   :stop
-  (.stop perf-files 1))
+  (.stop ^com.sun.net.httpserver.HttpServer perf-files 1))
 
 (defstate server
   :start
