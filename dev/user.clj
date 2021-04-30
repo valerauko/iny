@@ -58,7 +58,7 @@
   :start
   (server/server my-handler)
   :stop
-  (server))
+  @(server))
 
 ; (defstate poh
 ;   :start
