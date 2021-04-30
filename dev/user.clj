@@ -34,12 +34,13 @@
       (run-tests test-var))))
 
 (defn my-handler [{:keys [uri params body] :as request}]
-  {:status 200
-   :body (json/write-value-as-bytes {:message (str "Hello from " uri " using "
-                                                   (iny.native/socket-chan))
-                                     :params params
-                                     :body nil})
-   :headers {"content-type" "application/json"}})
+  (let [contents (slurp body)]
+    {:status 200
+     :body (json/write-value-as-bytes {:message (str "Hello from " uri " using "
+                                                     (iny.native/socket-chan))
+                                       :params params
+                                       :body contents})
+     :headers {"content-type" "application/json"}}))
 
 (defn reload
   []
