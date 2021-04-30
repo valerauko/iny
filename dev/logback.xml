@@ -9,7 +9,7 @@
 
     <!-- it logging out all the UnsatisfiedLinkErrors when starting up
          makes the boot logs really hard to parse -->
-    <logger name="io.netty.util.internal.NativeLibraryLoader" level="warn" />
+    <logger name="io.netty.util.internal" level="warn" />
 
     <root level="debug">
         <appender-ref ref="STDOUT" />
