@@ -20,13 +20,9 @@
      :kqueue)
    :nio])
 
-; (defn multi-dispatch
-;   ([] (multi-dispatch nil nil))
-;   ([_] (multi-dispatch nil nil))
-;   ([pack _] (some #{pack} packs)))
-
 (defmulti available?
-  #(some #{%} packs))
+  (fn available-dispatch [pack]
+    (some #{pack} packs)))
 
 (defmulti ^MultithreadEventLoopGroup event-loop
   (fn event-dispatch
