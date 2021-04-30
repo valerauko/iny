@@ -5,8 +5,8 @@ services:
     working_dir: /usr/local/iny
     command: lein repl :headless :host 0.0.0.0 :port 42001
     ports:
-      - 3000:3000
       - 8080:8080
+      - 8081:8081
       - 42001:42001
     volumes:
       - .:/usr/local/iny
