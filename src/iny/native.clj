@@ -6,37 +6,88 @@
             PlatformDependent]
            [io.netty.channel
             MultithreadEventLoopGroup]
-           ; [io.netty.channel.epoll
-           ;  Epoll
-           ;  EpollEventLoopGroup
-           ;  EpollServerSocketChannel]
-           ; [io.netty.channel.kqueue
-           ;  KQueue
-           ;  KQueueEventLoopGroup
-           ;  KQueueServerSocketChannel]
            [io.netty.channel.nio
             NioEventLoopGroup]
            [io.netty.channel.socket.nio
             NioServerSocketChannel]))
 
+(def packs
+  [(when (resolve 'io.netty.incubator.channel.uring.IOUring)
+     :uring)
+   (when (resolve 'io.netty.channel.epoll.Epoll)
+     :epoll)
+   (when (resolve 'io.netty.channel.kqueue.KQueue)
+     :kqueue)
+   :nio])
+
+; (defn multi-dispatch
+;   ([] (multi-dispatch nil nil))
+;   ([_] (multi-dispatch nil nil))
+;   ([pack _] (some #{pack} packs)))
+
+(defmulti available?
+  #(some #{%} packs))
+
+(defmulti ^MultithreadEventLoopGroup event-loop
+  (fn event-dispatch
+    ([_] (event-dispatch nil nil))
+    ([pack _] (some #{pack} packs))))
+
+(defmulti ^Class socket-chan
+  (fn socket-dispatch
+    ([] (socket-dispatch nil))
+    ([pack] (some #{pack} packs))))
+
+(mapv
+  (fn loader [pack]
+    (log/info (str "Loading " pack " support"))
+    (require (symbol (str "iny.native." (name pack)))))
+  (filter #(and % (not= % :nio)) packs))
+
+(defmethod available? :nio
+  [_]
+  true)
+
+(defmethod available? :default
+  [_]
+  false)
+
+(defn epoll?
+  []
+  (available? :epoll))
+
+(defn kqueue?
+  []
+  (available? :kqueue))
+
+(defn uring?
+  []
+  (available? :uring))
+
+(defn wanted
+  []
+  (first (filter available? packs)))
+
+(defmethod event-loop :nio
+  [_ thread-count]
+  (NioEventLoopGroup. ^long thread-count))
+
+(defmethod event-loop :default
+  [thread-count]
+  (event-loop (wanted) thread-count))
+
+(defmethod socket-chan :nio
+  [_]
+  NioServerSocketChannel)
+
+(defmethod socket-chan :default
+  []
+  (socket-chan (wanted)))
+
 (defn version-of
   [netty-pkg]
   (when-let [version ^Version (get (Version/identify) netty-pkg)]
     (.artifactVersion version)))
-
-(def epoll?
-  (memoize
-   (fn epoll? []
-     (when (version-of "netty-transport-native-epoll")
-       ;; it might be explicitly turned off
-       (eval `(io.netty.channel.epoll.Epoll/isAvailable))))))
-
-(def kqueue?
-  (memoize
-   (fn epoll? []
-     (when (version-of "netty-transport-native-kqueue")
-       ;; it might be explicitly turned off
-       (eval `(io.netty.channel.kqueue.KQueue/isAvailable))))))
 
 (defn suggest-package
   ([]
@@ -65,24 +116,5 @@
            (when classifier (str " :classifier \"" classifier "\""))
            "]` to your dependencies.")))))
 
-(defn ^MultithreadEventLoopGroup event-loop
-  [^long thread-count]
-  (cond
-    (epoll?)
-      (eval `(io.netty.channel.epoll.EpollEventLoopGroup. ~thread-count))
-    (kqueue?)
-      (eval `(io.netty.channel.kqueue.KQueueEventLoopGroup. ~thread-count))
-    :nio?
-      (NioEventLoopGroup. thread-count)))
-
-(defn ^Class socket-chan
-  []
-  (when-not (or (epoll?) (kqueue?))
-    (suggest-package))
-  (cond
-    (epoll?)
-      (eval `io.netty.channel.epoll.EpollServerSocketChannel)
-    (kqueue?)
-      (eval `io.netty.channel.kqueue.KQueueServerSocketChannel)
-    :nio?
-      NioServerSocketChannel))
+(when-not (some #{:epoll :kqueue} packs)
+  (suggest-package))
