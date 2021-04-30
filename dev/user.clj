@@ -1,5 +1,6 @@
 (ns user
-  (:require [clojure.tools.namespace.repl :refer [refresh set-refresh-dirs]]
+  (:require [clojure.tools.logging :as log]
+            [clojure.tools.namespace.repl :refer [refresh set-refresh-dirs]]
             [clojure.test :refer [run-tests]]
             [clojure.repl :refer :all]
             [clojure.pprint :as pp]
