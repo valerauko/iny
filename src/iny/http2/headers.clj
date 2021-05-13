@@ -10,6 +10,7 @@
            [io.netty.handler.codec.http
             HttpHeaderNames]
            [io.netty.handler.codec.http2
+            Http2Headers
             DefaultHttp2Headers]))
 
 (defprotocol Headers
@@ -42,10 +43,10 @@
       headers)))
 
 (defn headers->map
-  [headers]
+  [^Http2Headers headers]
   (persistent!
-   (reduce-kv
-    (fn [aggr ^AsciiString k ^AsciiString v]
+   (reduce
+    (fn [aggr [^AsciiString k ^CharSequence v]]
       (assoc! aggr (.toString (.toLowerCase k)) (.toString v)))
     (transient {})
-    (into {} headers))))
+    (iterator-seq (.iterator headers)))))
