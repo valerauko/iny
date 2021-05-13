@@ -83,22 +83,18 @@
         (.writeAndFlush ctx data-frame))
       (.flush ctx))))
 
-(defn content-length
+(defn ^Long content-length
   [^Http2HeadersFrame req]
-  (if-let [header-value (-> req (.headers) (.get "content-length"))]
+  (when-let [header-value (-> req (.headers) (.get "content-length"))]
     (try
       (cond
         (instance? AsciiString header-value)
         (.parseLong ^AsciiString header-value)
 
         (instance? String header-value)
-        (Long/parseLong ^String header-value)
-
-        :else 0)
+        (Long/parseLong ^String header-value))
       (catch Throwable e
-        (log/debug "Wrong content length header value" e)
-        0))
-    0))
+        (log/debug "Wrong content length header value" e)))))
 
 (defn send-away
   ([^ChannelHandlerContext ctx]
@@ -198,7 +194,7 @@
              ;; request with body
              ;; netty's HttpPostRequestDecoder can't handle http/2 frames
              :else
-             (let [len (content-length msg)]
+             (let [^long len (or (content-length msg) 65536)]
                (if (> len 0)
                  (let [in-stream ^PipedInputStream (PipedInputStream. ^long len)
                        out-stream (PipedOutputStream. in-stream)

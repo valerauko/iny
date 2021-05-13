@@ -112,15 +112,11 @@
 
 (defn ^Long content-length
   [^HttpRequest req]
-  (if-let [header-value (-> req
-                            (.headers)
-                            (.get HttpHeaderNames/CONTENT_LENGTH))]
+  (when-let [header-value (-> req (.headers) (.get HttpHeaderNames/CONTENT_LENGTH))]
     (try
       (Long/parseLong header-value)
       (catch Throwable e
-        (log/debug "Wrong content length header value" e)
-        0))
-    0))
+        (log/debug "Wrong content length header value" e)))))
 
 (defn content-known-empty?
   [^HttpRequest req]
@@ -213,7 +209,7 @@
 
               ;; non-multipart request with body
               :else
-              (let [in-stream (PipedInputStream. (content-length msg))
+              (let [in-stream (PipedInputStream. (or (content-length msg) 65536))
                     out-stream (PipedOutputStream. ^PipedInputStream in-stream)
                     request (netty->ring-request ctx in-stream msg)]
                 (reset! stream out-stream)
