@@ -109,16 +109,17 @@
      body
      (.indexOf uri (int 63)))))
 
-(defn content-length
+(defn ^Long content-length
   [^HttpRequest req]
-  (when-let [header-value (-> req
-                              (.headers)
-                              (.get HttpHeaderNames/CONTENT_LENGTH))]
+  (if-let [header-value (-> req
+                            (.headers)
+                            (.get HttpHeaderNames/CONTENT_LENGTH))]
     (try
       (Long/parseLong header-value)
       (catch Throwable e
         (log/debug "Wrong content length header value" e)
-        nil))))
+        0))
+    0))
 
 (defn content-known-empty?
   [^HttpRequest req]
