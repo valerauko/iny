@@ -3,13 +3,17 @@
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <charset>UTF-8</charset>
-            <pattern>%date{ISO8601} %-5level [%thread] %class | %msg %n</pattern>
+            <pattern>%date{ISO8601} %-5level [%thread] %logger | %msg %n</pattern>
         </encoder>
     </appender>
 
     <!-- it logging out all the UnsatisfiedLinkErrors when starting up
          makes the boot logs really hard to parse -->
     <logger name="io.netty.util.internal" level="warn" />
+    <!-- don't need all the low-level quic protocol logging -->
+    <logger name="io.netty.incubator.codec.quic" level="info" />
+    <!-- don't need the warnings about frames in unknown (closed) streams -->
+    <logger name="io.netty.util.internal.logging" level="info" />
 
     <root level="debug">
         <appender-ref ref="STDOUT" />
