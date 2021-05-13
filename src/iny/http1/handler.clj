@@ -1,6 +1,7 @@
 (ns iny.http1.handler
   (:require [clojure.tools.logging :as log]
             [potemkin :refer [def-derived-map reify-map-type]]
+            [iny.netty.handler :as handler]
             [iny.ring.request :refer [->RingRequest]]
             [iny.http.date :refer [schedule-date-value-update]]
             [iny.http.method :refer [http-methods get?]]
@@ -153,34 +154,14 @@
         body-decoder (atom nil)
         keep-alive? (atom false)
         out-name "iny-http1-outbound"]
-    (reify
-      ChannelInboundHandler
-
+    (handler/inbound
       (handlerAdded [_ ctx]
         (let [pipeline (.pipeline ctx)
               outbound
-              (reify
-                ChannelOutboundHandler
-                (handlerAdded [_ ctx])
-                (handlerRemoved [_ ctx])
-                (bind [_ ctx local promise]
-                  (.bind ctx local promise))
-                (close [_ ctx promise]
-                  (.close ctx promise))
-                (connect [_ ctx remote local promise]
-                  (.connect ctx remote local promise))
-                (deregister [_ ctx promise]
-                  (.deregister ctx promise))
-                (disconnect [_ ctx promise]
-                  (.disconnect ctx promise))
-                (flush [_ ctx]
-                  (.flush ctx))
-                (read [_ ctx]
-                  (.read ctx))
+              (handler/outbound
                 (write [_ ctx msg promise]
                   (if (map? msg)
                     (do
-                      (log/info "got response from ring")
                       (let [ftr ^ChannelFuture (respond ctx msg)]
                         (.addListener
                          ftr
@@ -206,9 +187,6 @@
         (.close ctx))
       (channelRegistered [_ ctx]
         (schedule-date-value-update ctx))
-      (channelUnregistered [_ ctx])
-      (channelActive [_ ctx])
-      (channelInactive [_ ctx])
       (channelRead [_ ctx msg]
         (cond
           (instance? HttpRequest msg)
@@ -261,7 +239,4 @@
           ; :else
           ; (log/info (class msg)))
 
-        (release msg))
-      (channelReadComplete [_ ctx])
-      (userEventTriggered [_ ctx event])
-      (channelWritabilityChanged [_ ctx]))))
+        (release msg)))))

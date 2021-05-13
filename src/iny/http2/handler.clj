@@ -1,6 +1,7 @@
 (ns iny.http2.handler
   (:require [clojure.tools.logging :as log]
             [potemkin :refer [def-derived-map]]
+            [iny.netty.handler :as handler]
             [iny.ring.request :refer [->RingRequest]]
             [iny.http.date :refer [schedule-date-value-update]]
             [iny.http.method :refer [http-methods]]
@@ -69,7 +70,7 @@
      body
      (.indexOf path (int 63)))))
 
-(defn respond
+(defn ^ChannelFuture respond
   [^ChannelHandlerContext ctx
    ^Http2FrameStream stream
    {:keys [body headers status]}]
@@ -139,9 +140,7 @@
         body-stream (atom nil)
         responded? (atom false)
         out-name "iny-http2-outbound"]
-    (reify
-      ChannelInboundHandler
-
+    (handler/inbound
       (handlerAdded
        [_ ctx]
        (let [pipeline (.pipeline ctx)]
@@ -151,40 +150,24 @@
          (when-not (.get pipeline Http2FrameCodec)
            (.addBefore pipeline (.name ctx) nil frame-codec))
          (let [outbound
-               (reify
-                 ChannelOutboundHandler
-                 (handlerAdded [_ ctx])
-                 (handlerRemoved [_ ctx])
-                 (exceptionCaught [_ ctx ex]
-                   (log/error ex)
-                   (.close ctx))
-                 (bind [_ ctx local promise]
-                   (.bind ctx local promise))
-                 (close [_ ctx promise]
-                   (.close ctx promise))
-                 (connect [_ ctx remote local promise]
-                   (.connect ctx remote local promise))
-                 (deregister [_ ctx promise]
-                   (.deregister ctx promise))
-                 (disconnect [_ ctx promise]
-                   (.disconnect ctx promise))
-                 (flush [_ ctx]
-                   (.flush ctx))
-                 (read [_ ctx]
-                   (.read ctx))
-                 (write [_ ctx msg promise]
-                   (if (map? msg)
-                     (doto ^ChannelFuture (respond ctx @http-stream msg)
-                           (.addListener ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
-                           (.addListener (reify ChannelFutureListener
-                                           (operationComplete [_ _]
-                                             (reset! responded? true)))))
-                     (.write ctx msg promise))))]
+               (handler/outbound
+                (exceptionCaught [_ ctx ex]
+                  (log/error ex)
+                  (.close ctx))
+                (write [_ ctx msg promise]
+                  (if (map? msg)
+                    (doto (respond ctx @http-stream msg)
+                          (.addListener ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
+                          (.addListener (reify ChannelFutureListener
+                                          (operationComplete [_ _]
+                                            (reset! responded? true)))))
+                    (.write ctx msg promise))))]
            (.addBefore pipeline executor "ring-handler" out-name outbound))))
-      (handlerRemoved [_ ctx]
-        (let [pipeline (.pipeline ctx)]
-          (when (.get pipeline out-name)
-            (.remove pipeline out-name))))
+      (handlerRemoved
+       [_ ctx]
+       (let [pipeline (.pipeline ctx)]
+         (when (.get pipeline out-name)
+           (.remove pipeline out-name))))
       (exceptionCaught
        [_ ctx ex]
        (when-not (or (instance? Http2FrameStreamException ex)
@@ -201,9 +184,6 @@
       (channelRegistered
        [_ ctx]
        (schedule-date-value-update ctx))
-      (channelUnregistered [_ ctx])
-      (channelActive [_ ctx])
-      (channelInactive [_ ctx])
       (channelRead
        [_ ctx msg]
        (cond
@@ -227,9 +207,9 @@
              ;; request with body
              ;; netty's HttpPostRequestDecoder can't handle http/2 frames
              :else
-             (let [len ^long (content-length msg)]
+             (let [len (content-length msg)]
                (if (> len 0)
-                 (let [in-stream ^PipedInputStream (PipedInputStream. len)
+                 (let [in-stream ^PipedInputStream (PipedInputStream. ^long len)
                        out-stream (PipedOutputStream. in-stream)
                        request (netty->ring-request ctx in-stream msg)]
                    (reset! body-stream out-stream)
@@ -261,7 +241,4 @@
                    (.setAutoRead (.config (.channel ctx)) true)
                    (reset! body-stream nil)))))))
 
-       (release msg))
-      (channelReadComplete [_ ctx])
-      (userEventTriggered [_ ctx event])
-      (channelWritabilityChanged [_ ctx]))))
+       (release msg)))))
