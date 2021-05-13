@@ -1,23 +1,33 @@
 (ns iny.http1.handler
   (:require [clojure.tools.logging :as log]
-            [potemkin :refer [def-derived-map]]
+            [potemkin :refer [def-derived-map reify-map-type]]
+            [iny.ring.request :refer [->RingRequest]]
             [iny.http.date :refer [schedule-date-value-update]]
             [iny.http.method :refer [http-methods get?]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer release]]
+            [iny.native :as native]
             [iny.http1.headers :refer [->headers headers->map headers-with-date]])
   (:import [java.io
-            IOException]
+            InputStream
+            IOException
+            PipedInputStream
+            PipedOutputStream]
            [java.net
             InetSocketAddress]
            [io.netty.buffer
             ByteBuf
             ByteBufInputStream]
+           [io.netty.util.concurrent
+            EventExecutor]
            [io.netty.channel
             ChannelFuture
             ChannelFutureListener
+            ChannelHandler
             ChannelHandlerContext
-            ChannelInboundHandler]
+            ChannelInboundHandler
+            ChannelOutboundHandler
+            MultithreadEventLoopGroup]
            [io.netty.handler.codec.http
             HttpUtil
             HttpContent
@@ -85,30 +95,19 @@
   [^HttpRequest req]
   (->> req (.method) (.name) (.get http-methods)))
 
-(def-derived-map RingRequest
-  [^ChannelHandlerContext ctx
-   ^HttpRequest           req
-   ^ByteBuf               body
-   q-at]
-  :uri            (if (not (neg? ^int q-at))
-                    (.substring (.uri req) 0 q-at)
-                    (.uri req))
-  :query-string   (if (not (neg? ^int q-at))
-                    (.substring (.uri req) q-at))
-  :headers        (headers->map (.headers req))
-  :request-method (request-method req)
-  :scheme         :http
-  :body           (ByteBufInputStream. body false)
-  :server-name    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getHostName))
-  :server-port    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getPort))
-  :remote-addr    (some-> ctx (.channel) ^InetSocketAddress (.remoteAddress) (.getAddress) (.getHostAddress))
-  :iny/keep-alive (HttpUtil/isKeepAlive req))
-
 (defn netty->ring-request
   [^ChannelHandlerContext ctx
-   ^ByteBuf               body
+   ^InputStream           body
    ^HttpRequest           req]
-  (->RingRequest ctx req body (.indexOf (.uri req) (int 63))))
+  (let [uri (.uri req)]
+    (->RingRequest
+     ctx
+     uri
+     #(headers->map (.headers req))
+     #(request-method req)
+     #(identity :http)
+     body
+     (.indexOf uri (int 63)))))
 
 (defn content-length
   [^HttpRequest req]
@@ -147,16 +146,58 @@
                  (.getFile upload))
      :size (.definedLength upload)})))
 
-(defn ^ChannelInboundHandler http-handler
-  [user-handler]
-  (let [body-buf (atom nil)
-        request (atom nil)
-        body-decoder (atom nil)]
+(defn ^ChannelHandler http-handler
+  [executor]
+  (let [stream (atom nil)
+        body-decoder (atom nil)
+        keep-alive? (atom false)
+        out-name "iny-http1-outbound"]
     (reify
       ChannelInboundHandler
 
-      (handlerAdded [_ ctx])
-      (handlerRemoved [_ ctx])
+      (handlerAdded [_ ctx]
+        (let [pipeline (.pipeline ctx)
+              outbound
+              (reify
+                ChannelOutboundHandler
+                (handlerAdded [_ ctx])
+                (handlerRemoved [_ ctx])
+                (bind [_ ctx local promise]
+                  (.bind ctx local promise))
+                (close [_ ctx promise]
+                  (.close ctx promise))
+                (connect [_ ctx remote local promise]
+                  (.connect ctx remote local promise))
+                (deregister [_ ctx promise]
+                  (.deregister ctx promise))
+                (disconnect [_ ctx promise]
+                  (.disconnect ctx promise))
+                (flush [_ ctx]
+                  (.flush ctx))
+                (read [_ ctx]
+                  (.read ctx))
+                (write [_ ctx msg promise]
+                  (if (map? msg)
+                    (do
+                      (log/info "got response from ring")
+                      (let [ftr ^ChannelFuture (respond ctx msg)]
+                        (.addListener
+                         ftr
+                         ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
+                        (when-not @keep-alive?
+                          (.addListener ftr ChannelFutureListener/CLOSE)))
+                      (when-let [decoder @body-decoder]
+                        (.destroy ^HttpPostRequestDecoder decoder)
+                        (reset! body-decoder nil))
+                      (when-let [out-stream @stream]
+                        (.close ^PipedOutputStream out-stream)
+                        (reset! stream nil)))
+                    (.write ctx msg promise))))]
+          (.addBefore pipeline executor "ring-handler" out-name outbound)))
+      (handlerRemoved [_ ctx]
+        (let [pipeline (.pipeline ctx)]
+          (when (.get pipeline out-name)
+            (.remove pipeline out-name))))
       (exceptionCaught [_ ctx ex]
         (log/error ex)
         (when-not (instance? IOException ex)
@@ -170,57 +211,56 @@
       (channelRead [_ ctx msg]
         (cond
           (instance? HttpRequest msg)
+          (let [keep-alive (HttpUtil/isKeepAlive msg)]
+            (reset! keep-alive? keep-alive)
             (cond
               ;; request without body
               (or (get? msg) (content-known-empty? msg))
-              (let [ftr (->> msg
-                             (netty->ring-request ctx (->buffer nil))
-                             ^IPersistentMap (user-handler)
-                             (respond ctx))]
-                (when-not (HttpUtil/isKeepAlive msg)
-                  (.addListener ftr ChannelFutureListener/CLOSE)))
-              ;; multipart
+              (let [request (netty->ring-request
+                             ctx
+                             (InputStream/nullInputStream)
+                             msg)]
+                (.fireChannelRead ctx request))
+
+              ;; TODO: figure out how to pass multipart
               (HttpPostRequestDecoder/isMultipart msg)
-              (let [decoder-instance (HttpPostRequestDecoder. data-factory msg)]
-                (reset! request (netty->ring-request ctx (->buffer nil) msg))
+              (let [decoder-instance (HttpPostRequestDecoder. data-factory msg)
+                    request (netty->ring-request
+                             ctx
+                             (InputStream/nullInputStream)
+                             msg)]
+                (.fireChannelRead ctx request)
                 (reset! body-decoder decoder-instance))
+
               ;; non-multipart request with body
               :else
-              (let [allocator (.alloc ctx)
-                    ;; TODO: consider request size limitations (memory use)
-                    buffer (if-let [len (content-length msg)]
-                             (.buffer allocator len)
-                             (.buffer allocator))]
-                (reset! request (netty->ring-request ctx buffer msg))
-                (reset! body-buf buffer)))
+              (let [in-stream (PipedInputStream. (content-length msg))
+                    out-stream (PipedOutputStream. ^PipedInputStream in-stream)
+                    request (netty->ring-request ctx in-stream msg)]
+                (reset! stream out-stream)
+                (.fireChannelRead ctx request)
+                (.setAutoRead (.config (.channel ctx)) false))))
+
           (instance? HttpContent msg)
-            (cond-let
-              [^ByteBuf buffer @body-buf]
-              (do
-                (.writeBytes buffer (.content ^HttpContent msg))
-                (when (instance? LastHttpContent msg)
-                  (->> @request
-                       ^IPersistentMap (user-handler)
-                       (respond ctx))
-                  (release buffer)
-                  (reset! request nil)
-                  (reset! body-buf nil)))
-              [^HttpPostRequestDecoder decoder @body-decoder]
-              (do
-                (.offer decoder ^HttpContent msg)
-                (when (instance? LastHttpContent msg)
-                  (->> @request
-                       (user-handler)
-                       (respond ctx))
-                  ;; TODO: doesn't actually do anything just yet
-                  (doseq [data (.getBodyHttpDatas decoder)]
-                    (log-it data))
-                  (.destroy decoder)
-                  (reset! body-decoder nil))))
+          (cond-let
+            [^PipedOutputStream out-stream @stream]
+            (let [buf (.content ^HttpContent msg)
+                  len (.readableBytes buf)]
+              (try
+                (.getBytes buf 0 out-stream len)
+                (log/debug "wrote bytes to out-stream")
+                (catch IOException _))
+              (when (instance? LastHttpContent msg)
+                (.close out-stream)
+                (.setAutoRead (.config (.channel ctx)) true)))
+
+            [^HttpPostRequestDecoder decoder @body-decoder]
+            (.offer decoder ^HttpContent msg)))
+
           ; :else
-          ;   (log/info (class msg))
-          )
-          (release msg))
+          ; (log/info (class msg)))
+
+        (release msg))
       (channelReadComplete [_ ctx])
       (userEventTriggered [_ ctx event])
       (channelWritabilityChanged [_ ctx]))))

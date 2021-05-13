@@ -24,14 +24,14 @@
             Http2FrameCodec]))
 
 (defn ^ChannelHandler http-fallback
-  [build-http-pipeline user-handler]
+  [build-http-pipeline executor]
   (reify
     ChannelInboundHandler
     (handlerAdded [_ _])
     (handlerRemoved [_ _])
     (exceptionCaught
      [_ ctx ex]
-     (log/error ex))
+     (.fireExceptionCaught ctx ex))
     (channelRegistered [_ ctx])
     (channelUnregistered [_ ctx])
     (channelActive [_ ctx])
@@ -40,7 +40,7 @@
      [this ctx msg]
      (let [pipeline (.pipeline ctx)]
        ;; removes the h2c-upgrade handler (no upgrade was attempted)
-       (build-http-pipeline pipeline user-handler)
+       (build-http-pipeline pipeline executor)
        (.fireChannelRead ctx msg)
        (.remove pipeline this)))
     (channelReadComplete [_ ctx])
@@ -53,7 +53,7 @@
     (.build builder)))
 
 (defn upgrade-factory
-  [user-handler]
+  [http2-handler]
   (reify
     HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [_ proto]
@@ -62,12 +62,12 @@
           (Http2ServerUpgradeCodec.
            (codec)
            ^"[Lio.netty.channel.ChannelHandler;"
-           (into-array ChannelHandler [user-handler]))))))
+           (into-array ChannelHandler [http2-handler]))))))
 
 (defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
-  [user-handler]
+  [executor]
   (let [http-codec (HttpServerCodec.)
-        handler (http2-handler user-handler (codec))
+        handler (http2-handler (codec) executor)
         factory (upgrade-factory handler)]
     (CleartextHttp2ServerUpgradeHandler.
      http-codec
@@ -75,12 +75,7 @@
      handler)))
 
 (defn server-pipeline
-  [^ChannelPipeline pipeline user-handler]
-  (.addLast
-   pipeline
-   "h2c-upgrade"
-   (h2c-upgrade user-handler))
-  (.addLast
-   pipeline
-   "http-fallback"
-   (http-fallback http1/server-pipeline user-handler)))
+  [^ChannelPipeline pipeline executor]
+  (.addBefore pipeline "ring-handler" "h2c-upgrade" (h2c-upgrade executor))
+  (.addBefore pipeline "ring-handler" "http-fallback"
+              (http-fallback http1/server-pipeline executor)))

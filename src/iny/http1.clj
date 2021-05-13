@@ -6,6 +6,6 @@
             HttpServerExpectContinueHandler]))
 
 (defn server-pipeline
-  [^ChannelPipeline pipeline user-handler]
-  (.addLast pipeline "continue" (HttpServerExpectContinueHandler.))
-  (.addLast pipeline "user-handler" (http-handler user-handler)))
+  [^ChannelPipeline pipeline executor]
+  (.addBefore pipeline "ring-handler" "continue" (HttpServerExpectContinueHandler.))
+  (.addBefore pipeline "ring-handler" "http1-handler" (http-handler executor)))

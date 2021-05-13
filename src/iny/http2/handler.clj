@@ -1,13 +1,21 @@
 (ns iny.http2.handler
   (:require [clojure.tools.logging :as log]
             [potemkin :refer [def-derived-map]]
+            [iny.ring.request :refer [->RingRequest]]
             [iny.http.date :refer [schedule-date-value-update]]
             [iny.http.method :refer [http-methods]]
             [iny.http.status :refer [->status]]
             [iny.http.body :refer [->buffer release]]
             [iny.http2.headers :refer [->headers headers->map]])
-  (:import [java.net
+  (:import [java.io
+            InputStream
+            IOException
+            PipedInputStream
+            PipedOutputStream]
+           [java.net
             InetSocketAddress]
+           [java.util.concurrent
+            RejectedExecutionException]
            [io.netty.util
             AsciiString]
            [io.netty.buffer
@@ -17,21 +25,26 @@
             ChannelFuture
             ChannelFutureListener
             ChannelHandlerContext
-            ChannelInboundHandler]
+            ChannelInboundHandler
+            ChannelOutboundHandler]
            [io.netty.handler.codec.http
             HttpHeaderNames
             HttpUtil
             HttpResponseStatus]
            [io.netty.handler.codec.http2
             Http2Error
+            Http2Exception
             Http2FrameCodec
             Http2FrameStream
+            Http2FrameStreamException
             ;; frames
             Http2DataFrame
             Http2HeadersFrame
             DefaultHttp2DataFrame
+            DefaultHttp2GoAwayFrame
             DefaultHttp2HeadersFrame
             DefaultHttp2ResetFrame
+            DefaultHttp2WindowUpdateFrame
             ;;
             Http2Headers
             Http2Headers$PseudoHeaderName
@@ -41,34 +54,20 @@
   [^Http2Headers headers]
   (->> headers (.method) (str) (.get http-methods)))
 
-(def-derived-map RingRequest
-  [^ChannelHandlerContext ctx
-   ^Http2HeadersFrame     req
-   ^Http2Headers          headers
-   ^ByteBuf               body
-   ^String                path
-   q-at]
-  :uri            (if (not (neg? ^int q-at))
-                    (.substring path 0 q-at)
-                    path)
-  :query-string   (if (not (neg? ^int q-at))
-                    (.substring path q-at))
-  :headers        (headers->map headers)
-  :request-method (str (request-method headers))
-  :scheme         (-> headers (.scheme) (str) (keyword))
-  :body           (ByteBufInputStream. body false)
-  :server-name    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getHostName))
-  :server-port    (some-> ctx (.channel) ^InetSocketAddress (.localAddress) (.getPort))
-  :remote-addr    (some-> ctx (.channel) ^InetSocketAddress (.remoteAddress) (.getAddress) (.getHostAddress)))
-
 (defn netty->ring-request
   [^ChannelHandlerContext ctx
-   ^ByteBuf               body
+   ^InputStream           body
    ^Http2HeadersFrame     req]
   (let [headers (.headers req)
         path (.toString (.path headers))]
-    (->RingRequest ctx req headers body path
-                   (.indexOf path (int 63)))))
+    (->RingRequest
+     ctx
+     path
+     #(headers->map headers)
+     #(str (request-method headers))
+     #(-> headers (.scheme) (str) (keyword))
+     body
+     (.indexOf path (int 63)))))
 
 (defn respond
   [^ChannelHandlerContext ctx
@@ -94,40 +93,111 @@
 
 (defn content-length
   [^Http2HeadersFrame req]
-  (when-let [header-value (-> req
-                              (.headers)
-                              (.get "content-length"))]
+  (if-let [header-value (-> req (.headers) (.get "content-length"))]
     (try
-      (.parseLong ^AsciiString header-value)
+      (cond
+        (instance? AsciiString header-value)
+        (.parseLong ^AsciiString header-value)
+
+        (instance? String header-value)
+        (Long/parseLong ^String header-value)
+
+        :else 0)
       (catch Throwable e
         (log/debug "Wrong content length header value" e)
-        nil))))
+        0))
+    0))
 
 (defn send-away
+  ([^ChannelHandlerContext ctx]
+   (let [frame (DefaultHttp2GoAwayFrame. Http2Error/PROTOCOL_ERROR)]
+     (.writeAndFlush ctx frame)))
+  ([^ChannelHandlerContext ctx ^Http2FrameStream stream]
+   (let [frame (doto (DefaultHttp2ResetFrame. Http2Error/PROTOCOL_ERROR)
+                     (.stream stream))]
+     (.writeAndFlush ctx frame))))
+
+(defn expand-window
+  [^ChannelHandlerContext ctx ^Http2DataFrame data]
+  (let [update-bytes (.initialFlowControlledBytes data)
+        request-stream (.stream data)
+        update-frame (doto (DefaultHttp2WindowUpdateFrame. update-bytes)
+                           (.stream request-stream))]
+    (.write ctx update-frame)))
+
+(defn send-no-thanks
   [^ChannelHandlerContext ctx ^Http2FrameStream stream]
-  (let [frame (doto (DefaultHttp2ResetFrame. Http2Error/PROTOCOL_ERROR)
+  (let [frame (doto (DefaultHttp2ResetFrame. Http2Error/CANCEL)
                     (.stream stream))]
-    (.writeAndFlush ctx frame)))
+    (.write ctx frame)))
 
 (defn http2-handler
-  [user-handler frame-codec]
+  [frame-codec executor]
   (let [;; TODO: deal with multiple streams uploading parallel
-        ring-req (atom nil)
-        body-buf (atom nil)
-        exp-len (atom nil)]
+        ;;   maybe with Http2MultiplexHandler?
+        http-stream (atom nil)
+        body-stream (atom nil)
+        responded? (atom false)
+        out-name "iny-http2-outbound"]
     (reify
       ChannelInboundHandler
 
       (handlerAdded
        [_ ctx]
        (let [pipeline (.pipeline ctx)]
+         (when-let [fallback (.get pipeline "http-fallback")]
+           (.remove pipeline fallback))
          ;; add bidi codec handler to the pipeline if not present yet
          (when-not (.get pipeline Http2FrameCodec)
-           (.addBefore pipeline (.name ctx) nil frame-codec))))
-      (handlerRemoved [_ ctx])
+           (.addBefore pipeline (.name ctx) nil frame-codec))
+         (let [outbound
+               (reify
+                 ChannelOutboundHandler
+                 (handlerAdded [_ ctx])
+                 (handlerRemoved [_ ctx])
+                 (exceptionCaught [_ ctx ex]
+                   (log/error ex)
+                   (.close ctx))
+                 (bind [_ ctx local promise]
+                   (.bind ctx local promise))
+                 (close [_ ctx promise]
+                   (.close ctx promise))
+                 (connect [_ ctx remote local promise]
+                   (.connect ctx remote local promise))
+                 (deregister [_ ctx promise]
+                   (.deregister ctx promise))
+                 (disconnect [_ ctx promise]
+                   (.disconnect ctx promise))
+                 (flush [_ ctx]
+                   (.flush ctx))
+                 (read [_ ctx]
+                   (.read ctx))
+                 (write [_ ctx msg promise]
+                   (if (map? msg)
+                     (doto ^ChannelFuture (respond ctx @http-stream msg)
+                           (.addListener ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
+                           (.addListener (reify ChannelFutureListener
+                                           (operationComplete [_ _]
+                                             (reset! responded? true)))))
+                     (.write ctx msg promise))))]
+           (.addBefore pipeline executor "ring-handler" out-name outbound))))
+      (handlerRemoved [_ ctx]
+        (let [pipeline (.pipeline ctx)]
+          (when (.get pipeline out-name)
+            (.remove pipeline out-name))))
       (exceptionCaught
        [_ ctx ex]
-       (log/warn ex))
+       (when-not (or (instance? Http2FrameStreamException ex)
+                     (instance? Http2Exception ex)
+                     (instance? IOException ex))
+         (log/error ex))
+       (cond
+         (instance? Http2FrameStreamException ex)
+         (send-away ctx (.stream ^Http2FrameStreamException ex))
+
+         (instance? RejectedExecutionException ex)
+         (respond ctx nil {:status 503}))
+       (.close ctx))
       (channelRegistered
        [_ ctx]
        (schedule-date-value-update ctx))
@@ -138,59 +208,59 @@
        [_ ctx msg]
        (cond
          (instance? Http2HeadersFrame msg)
-         (let [stream (.stream ^Http2HeadersFrame msg)]
+         (let [msg ^Http2HeadersFrame msg
+               stream (.stream msg)]
+           (reset! http-stream stream)
+           (reset! responded? false)
            (cond
              ;; request without body
-             (.isEndStream ^Http2HeadersFrame msg)
-             (if-let [request @ring-req]
-               ;; handles the case when there are trailing headers
-               ;; that come after all the data frames are received
-               (let [buffer ^ByteBuf @body-buf
-                     expected-length @exp-len]
-                 (if (or (nil? expected-length)
-                         (= expected-length (.readableBytes buffer)))
-                   (->> ^Http2HeadersFrame msg
-                        (.headers)
-                        (headers->map)
-                        (update request :headers merge)
-                        ^IPersistentMap (user-handler)
-                        (respond ctx stream))
-                   (send-away ctx stream))
-                 (release buffer))
-               ;; this is the "hot path," body-less GET requests
-               (->> msg
-                    (netty->ring-request ctx (->buffer nil))
-                    ^IPersistentMap (user-handler)
-                    (respond ctx stream)))
+             (.isEndStream msg)
+             ;; TODO: handle trailing headers
+             ;; this is the "hot path," body-less GET requests
+             (.fireChannelRead
+               ctx
+               (netty->ring-request
+                ctx
+                (InputStream/nullInputStream)
+                msg))
+
              ;; request with body
              ;; netty's HttpPostRequestDecoder can't handle http/2 frames
              :else
-             (let [allocator (.alloc ctx)
-                   len (content-length msg)
-                   buffer (if len
-                            (.buffer allocator len)
-                            (.buffer allocator))]
-               (reset! ring-req (netty->ring-request ctx buffer msg))
-               (reset! body-buf buffer)
-               (reset! exp-len len))))
+             (let [len ^long (content-length msg)]
+               (if (> len 0)
+                 (let [in-stream ^PipedInputStream (PipedInputStream. len)
+                       out-stream (PipedOutputStream. in-stream)
+                       request (netty->ring-request ctx in-stream msg)]
+                   (reset! body-stream out-stream)
+                   (.fireChannelRead ctx request)
+                   (.setAutoRead (.config (.channel ctx)) false))
+                 ;; in a funky edge-case it may be an empty body
+                 (.fireChannelRead
+                  ctx
+                  (netty->ring-request
+                   ctx
+                   (InputStream/nullInputStream)
+                   msg))))))
+
          ;; body frames
          (instance? Http2DataFrame msg)
-         (let [stream (.stream ^Http2DataFrame msg)
-               request @ring-req
-               buffer ^ByteBuf @body-buf
-               expected-length @exp-len]
-           (.writeBytes buffer (.content ^Http2DataFrame msg))
-           (when (.isEndStream ^Http2DataFrame msg)
-             (if (or (nil? expected-length)
-                     (= expected-length (.readableBytes buffer)))
-               (->> request
-                    ^IPersistentMap (user-handler)
-                    (respond ctx stream))
-               (send-away ctx stream))
-             (release buffer)
-             (reset! ring-req nil)
-             (reset! body-buf nil)
-             (reset! exp-len nil))))
+         (let [msg ^Http2DataFrame msg]
+           (if @responded?
+             (send-no-thanks ctx @http-stream)
+             (when-let [out-stream ^PipedOutputStream @body-stream]
+               (let [buf (.content msg)
+                     len (.readableBytes buf)]
+                 (try
+                   (.getBytes buf 0 out-stream len)
+                   (catch IOException _))
+                 (.addListener ^ChannelFuture (expand-window ctx msg)
+                               ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
+                 (when (.isEndStream msg)
+                   (.close out-stream)
+                   (.setAutoRead (.config (.channel ctx)) true)
+                   (reset! body-stream nil)))))))
+
        (release msg))
       (channelReadComplete [_ ctx])
       (userEventTriggered [_ ctx event])
