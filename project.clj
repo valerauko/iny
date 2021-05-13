@@ -7,13 +7,13 @@
                  [org.clojure/tools.logging "1.1.0"
                   :exclusions [org.clojure/clojure]]
                  [potemkin "0.4.5"]
-                 [io.netty/netty-common "4.1.58.Final"]
-                 [io.netty/netty-buffer "4.1.58.Final"]
-                 [io.netty/netty-transport "4.1.58.Final"]
-                 [io.netty/netty-codec "4.1.58.Final"]
-                 [io.netty/netty-handler "4.1.58.Final"]
-                 [io.netty/netty-codec-http "4.1.58.Final"]
-                 [io.netty/netty-codec-http2 "4.1.58.Final"]]
+                 [io.netty/netty-common "4.1.63.Final"]
+                 [io.netty/netty-buffer "4.1.63.Final"]
+                 [io.netty/netty-transport "4.1.63.Final"]
+                 [io.netty/netty-codec "4.1.63.Final"]
+                 [io.netty/netty-handler "4.1.63.Final"]
+                 [io.netty/netty-codec-http "4.1.63.Final"]
+                 [io.netty/netty-codec-http2 "4.1.63.Final"]]
 
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
 
@@ -44,9 +44,9 @@
                    :dependencies
                    [[org.clojure/test.check "1.1.0"]
                     [org.clojure/tools.namespace "1.1.0"]
-                    [io.netty.incubator/netty-incubator-transport-native-io_uring "0.0.3.Final"
+                    [io.netty.incubator/netty-incubator-transport-native-io_uring "0.0.5.Final"
                      :classifier "linux-x86_64"]
-                    [io.netty/netty-transport-native-epoll "4.1.58.Final"
+                    [io.netty/netty-transport-native-epoll "4.1.63.Final"
                      :classifier "linux-x86_64"]
                     [mount "0.1.16"]
                     [metosin/jsonista "0.3.2"]
