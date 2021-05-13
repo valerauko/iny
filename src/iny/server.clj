@@ -2,6 +2,7 @@
   (:require [clojure.tools.logging :as log]
             [iny.native :refer [event-loop socket-chan]]
             [iny.http2 :as http2]
+            [iny.http3 :refer [http3-boot]]
             [iny.ring.handler :as ring])
   (:import [io.netty.util
             ResourceLeakDetector
@@ -57,11 +58,15 @@
                        (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
                        (.childOption ChannelOption/TCP_NODELAY true)
                        (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true)))
-            channel (-> boot (.bind port) .sync .channel)]
+            tcp-channel (-> boot (.bind port) .sync .channel)
+            udp-channel (-> (http3-boot port parent-group user-executor handler)
+                            (.bind port) .sync .channel)]
         (fn closer []
-          (-> channel .close .sync)
+          (-> tcp-channel .close .sync)
+          (-> udp-channel .close .sync)
           (.shutdownGracefully parent-group)
-          (.shutdownGracefully child-group)))
+          (.shutdownGracefully child-group)
+          (.shutdownGracefully user-executor)))
       (catch Exception e
         (log/error "Iny server error:" e)
         @(.shutdownGracefully parent-group)

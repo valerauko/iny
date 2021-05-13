@@ -25,6 +25,7 @@
              :analyze {:aot :all
                        :jvm-opts ["-agentlib:native-image-agent=config-output-dir=./resources"]}
              :dev {:source-paths ["dev"]
+                   :java-source-paths ["src/java"]
                    :plugins [[lein-ancient "0.7.0"]]
                    :jvm-opts
                    ["-server"
@@ -46,6 +47,10 @@
                     [org.clojure/tools.namespace "1.1.0"]
                     [io.netty.incubator/netty-incubator-transport-native-io_uring "0.0.5.Final"
                      :classifier "linux-x86_64"]
+                    [io.netty.incubator/netty-incubator-codec-quic "0.0.12.Final"
+                     :classifier "linux-x86_64"]
+                    [io.netty.incubator/netty-incubator-codec-http3 "0.0.3.Final"
+                     :exclusions [io.netty.incubator/netty-incubator-codec-quic]]
                     [io.netty/netty-transport-native-epoll "4.1.63.Final"
                      :classifier "linux-x86_64"]
                     [mount "0.1.16"]

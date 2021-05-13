@@ -1,6 +1,7 @@
 (ns iny.http2.headers
   (:require [iny.meta :refer [version]]
-            [iny.http.date :refer [date-header-value]])
+            [iny.http.date :refer [date-header-value]]
+            [iny.http3.headers :as http3])
   (:import [java.util
             Map$Entry]
            [clojure.lang
@@ -16,13 +17,14 @@
 (defprotocol Headers
   (^io.netty.handler.codec.http2.DefaultHttp2Headers ->headers [_]))
 
-;; DefaultHttp2Headers.copy returns a DefaultHeaders instance
+;; DefaultHttp2Headers#copy returns a DefaultHeaders instance
 (let [ver-str (AsciiString. (str "iny/" version))]
   (defn ^DefaultHttp2Headers headers-with-date
     []
     (doto (DefaultHttp2Headers. false)
           (.set HttpHeaderNames/SERVER ver-str)
-          (.set HttpHeaderNames/DATE (date-header-value)))))
+          (.set HttpHeaderNames/DATE (date-header-value))
+          (.set http3/alt-svc-name http3/alt-svc-value))))
 
 (extend-protocol Headers
   nil
