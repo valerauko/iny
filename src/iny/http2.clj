@@ -3,15 +3,10 @@
             [iny.http1 :as http1]
             [iny.http2.handler :refer [http2-handler]])
   (:import [io.netty.util
-            AsciiString
-            ReferenceCountUtil]
+            AsciiString]
            [io.netty.channel
             ChannelHandler
-            ChannelInboundHandler
-            ChannelInitializer
             ChannelPipeline]
-           [io.netty.channel.socket
-            SocketChannel]
            [io.netty.handler.codec.http
             HttpServerCodec
             HttpServerUpgradeHandler

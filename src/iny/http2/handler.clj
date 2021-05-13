@@ -13,25 +13,16 @@
             IOException
             PipedInputStream
             PipedOutputStream]
-           [java.net
-            InetSocketAddress]
            [java.util.concurrent
             RejectedExecutionException]
            [io.netty.util
             AsciiString]
-           [io.netty.buffer
-            ByteBuf
-            ByteBufInputStream]
            [io.netty.channel
             ChannelFuture
             ChannelFutureListener
-            ChannelHandlerContext
-            ChannelInboundHandler
-            ChannelOutboundHandler]
+            ChannelHandlerContext]
            [io.netty.handler.codec.http
-            HttpHeaderNames
-            HttpUtil
-            HttpResponseStatus]
+            HttpHeaderNames]
            [io.netty.handler.codec.http2
             Http2Error
             Http2Exception

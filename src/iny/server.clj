@@ -17,10 +17,7 @@
            [io.netty.channel.socket
             SocketChannel]
            [io.netty.handler.flush
-            FlushConsolidationHandler]
-           [io.netty.handler.codec.http
-            HttpServerCodec
-            HttpServerUpgradeHandler]))
+            FlushConsolidationHandler]))
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
