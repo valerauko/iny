@@ -148,6 +148,7 @@
   (let [stream (atom nil)
         body-decoder (atom nil)
         keep-alive? (atom false)
+        date-future (atom nil)
         out-name "iny-http1-outbound"]
     (handler/inbound
       (handlerAdded [_ ctx]
@@ -182,8 +183,11 @@
           (respond-500 ctx ex))
         (.close ctx))
       (channelRegistered [_ ctx]
-        (schedule-date-value-update ctx))
-      (channelRead [_ ctx msg]
+        (reset! date-future (schedule-date-value-update ctx)))
+      (channelUnregistered [_ ctx]
+        (when-let [ftr (first (reset-vals! date-future nil))]
+          (.cancel ^ScheduledFuture ftr false)))
+      (channelRead [this ctx msg]
         (cond
           (instance? HttpRequest msg)
           (let [keep-alive (reset! keep-alive? (HttpUtil/isKeepAlive msg))]
