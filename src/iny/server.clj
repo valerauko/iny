@@ -31,7 +31,7 @@
      (let [pipeline (.pipeline ch)]
        (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
        (.addLast pipeline executor "ring-handler" (ring/handler user-handler))
-       (http2/server-pipeline pipeline executor)))))
+       (http2/server-pipeline pipeline)))))
 
 (defn server
   [handler]

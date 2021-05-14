@@ -15,51 +15,59 @@
            [io.netty.handler.codec.http2
             Http2FrameCodecBuilder
             Http2CodecUtil
+            Http2MultiplexHandler
             CleartextHttp2ServerUpgradeHandler
             Http2ServerUpgradeCodec
             Http2FrameCodec]))
 
 (defn ^ChannelHandler http-fallback
-  [build-http-pipeline executor]
+  [build-http-pipeline]
   (handler/inbound
     (channelRead
      [this ctx msg]
      (let [pipeline (.pipeline ctx)]
        ;; removes the h2c-upgrade handler (no upgrade was attempted)
-       (build-http-pipeline pipeline executor)
+       (build-http-pipeline pipeline)
        (.fireChannelRead ctx msg)
        (.remove pipeline HttpServerUpgradeHandler)
        (.remove pipeline this)))))
 
 (let [builder (Http2FrameCodecBuilder/forServer)]
-  (defn ^Http2FrameCodec codec
+  (defn ^Http2FrameCodec http2-codec
     []
     (.build builder)))
 
 (defn upgrade-factory
-  [http2-handler]
+  [^Http2FrameCodec codec http2-handler]
   (reify
     HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [_ proto]
-      (condp #(AsciiString/contentEquals %1 %2) proto
-        Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME
-          (Http2ServerUpgradeCodec.
-           (codec)
-           ^"[Lio.netty.channel.ChannelHandler;"
-           (into-array ChannelHandler [http2-handler]))))))
+      (case proto
+        "h2c"
+        (Http2ServerUpgradeCodec.
+         codec
+         ^"[Lio.netty.channel.ChannelHandler;"
+         (into-array ChannelHandler [http2-handler]))))))
 
 (defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
-  [executor]
-  (let [http-codec (HttpServerCodec. 4096 8192 65536)
-        handler (http2-handler (codec) executor)
-        factory (upgrade-factory handler)]
+  []
+  (let [source-codec (HttpServerCodec. 4096 8192 65536)
+        handler (http2-handler)
+        codec (http2-codec)
+        factory (upgrade-factory codec handler)]
     (CleartextHttp2ServerUpgradeHandler.
-     http-codec
-     (HttpServerUpgradeHandler. http-codec factory)
-     handler)))
+     source-codec
+     (HttpServerUpgradeHandler. source-codec factory)
+     (handler/inbound
+      (handlerAdded [this ctx]
+        (let [pipeline (.pipeline ctx)]
+          (.remove pipeline "http-fallback")
+          (.addAfter pipeline (.name ctx) "iny-http2-inbound" handler)
+          (.addAfter pipeline (.name ctx) "http2-codec" codec)
+          (.remove pipeline this)))))))
 
 (defn server-pipeline
-  [^ChannelPipeline pipeline executor]
-  (.addBefore pipeline "ring-handler" "h2c-upgrade" (h2c-upgrade executor))
+  [^ChannelPipeline pipeline]
+  (.addBefore pipeline "ring-handler" "h2c-upgrade" (h2c-upgrade))
   (.addBefore pipeline "ring-handler" "http-fallback"
-              (http-fallback http1/server-pipeline executor)))
+              (http-fallback http1/server-pipeline)))

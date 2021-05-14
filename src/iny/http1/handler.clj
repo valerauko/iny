@@ -144,7 +144,7 @@
      :size (.definedLength upload)})))
 
 (defn ^ChannelHandler http-handler
-  [executor]
+  []
   (let [stream (atom nil)
         body-decoder (atom nil)
         keep-alive? (atom false)
@@ -153,6 +153,7 @@
     (handler/inbound
       (handlerAdded [_ ctx]
         (let [pipeline (.pipeline ctx)
+              ring-executor (-> pipeline (.context "ring-handler") (.executor))
               outbound
               (handler/outbound
                 (write [_ ctx msg promise]
@@ -171,7 +172,7 @@
                         (.close ^OutputStream out-stream)
                         (reset! stream nil)))
                     (.write ctx msg promise))))]
-          (.addBefore pipeline executor "ring-handler" out-name outbound)))
+          (.addBefore pipeline ring-executor "ring-handler" out-name outbound)))
       (handlerRemoved [_ ctx]
         (let [pipeline (.pipeline ctx)]
           (when (.get pipeline out-name)

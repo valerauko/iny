@@ -120,7 +120,7 @@
     (.write ctx frame)))
 
 (defn http2-handler
-  [frame-codec executor]
+  []
   (let [;; TODO: deal with multiple streams uploading parallel
         ;;   maybe with Http2MultiplexHandler?
         http-stream (atom nil)
@@ -130,26 +130,22 @@
     (handler/inbound
       (handlerAdded
        [_ ctx]
-       (let [pipeline (.pipeline ctx)]
-         (when-let [fallback (.get pipeline "http-fallback")]
-           (.remove pipeline fallback))
-         ;; add bidi codec handler to the pipeline if not present yet
-         (when-not (.get pipeline Http2FrameCodec)
-           (.addBefore pipeline (.name ctx) nil frame-codec))
-         (let [outbound
-               (handler/outbound
-                (exceptionCaught [_ ctx ex]
-                  (log/error ex)
-                  (.close ctx))
-                (write [_ ctx msg promise]
-                  (if (map? msg)
-                    (doto (respond ctx @http-stream msg)
-                          (.addListener ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
-                          (.addListener (reify ChannelFutureListener
-                                          (operationComplete [_ _]
-                                            (reset! responded? true)))))
-                    (.write ctx msg promise))))]
-           (.addBefore pipeline executor "ring-handler" out-name outbound))))
+       (let [pipeline (.pipeline ctx)
+             ring-executor (-> pipeline (.context "ring-handler") (.executor))
+             outbound
+             (handler/outbound
+              (exceptionCaught [_ ctx ex]
+                (log/error ex)
+                (.close ctx))
+              (write [_ ctx msg promise]
+                (if (map? msg)
+                  (doto (respond ctx @http-stream msg)
+                    (.addListener ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
+                    (.addListener (reify ChannelFutureListener
+                                    (operationComplete [_ _]
+                                      (reset! responded? true)))))
+                  (.write ctx msg promise))))]
+         (.addBefore pipeline ring-executor "ring-handler" out-name outbound)))
       (handlerRemoved
        [_ ctx]
        (let [pipeline (.pipeline ctx)]

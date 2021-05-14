@@ -3,9 +3,17 @@
   (:import [io.netty.channel
             ChannelPipeline]
            [io.netty.handler.codec.http
+            HttpRequestDecoder
+            HttpResponseEncoder
+            HttpServerCodec
             HttpServerExpectContinueHandler]))
 
 (defn server-pipeline
-  [^ChannelPipeline pipeline executor]
+  [^ChannelPipeline pipeline]
+  (.addBefore pipeline "ring-handler" "http1-inbound" (HttpRequestDecoder. 4096 8192 65536))
+  (let [ring-executor (-> pipeline (.context "ring-handler") (.executor))]
+    (.addBefore pipeline ring-executor "ring-handler" "http1-outbound"
+                (HttpResponseEncoder.)))
   (.addBefore pipeline "ring-handler" "continue" (HttpServerExpectContinueHandler.))
-  (.addBefore pipeline "ring-handler" "iny-http1-inbound" (http-handler executor)))
+  (.addBefore pipeline "ring-handler" "iny-http1-inbound" (http-handler))
+  (.remove pipeline HttpServerCodec))
