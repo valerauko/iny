@@ -20,7 +20,8 @@
             QuicSslContextBuilder]))
 
 (defn ^QuicServerCodecBuilder quic-builder
-  [{:keys [worker-group user-handler ^SelfSignedCertificate cert]}]
+  [{:keys [worker-group user-handler ^SelfSignedCertificate cert]
+    :or {cert (SelfSignedCertificate.)}}]
   (let [ssl-context (-> (QuicSslContextBuilder/forServer
                          (.key cert) nil
                          ^"[Ljava.security.cert.X509Certificate;"

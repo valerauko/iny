@@ -49,6 +49,10 @@
   (refresh)
   (start))
 
+(defstate agents
+  :start :noop
+  :stop (shutdown-agents))
+
 (defstate perf-files
   :start
   (prof/serve-files 8081)
@@ -59,7 +63,7 @@
   :start
   (server/server my-handler)
   :stop
-  @(server))
+  (.close server))
 
 ; (defstate poh
 ;   :start
