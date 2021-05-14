@@ -1,73 +1,68 @@
 (ns iny.server
   (:require [clojure.tools.logging :as log]
-            [iny.native :refer [event-loop socket-chan]]
-            [iny.http2 :as http2]
-            [iny.http3 :refer [http3-boot]]
+            [iny.native :refer [event-loop]]
+            [iny.http.channel :as http]
+            [iny.http3.channel :as http3]
             [iny.ring.handler :as ring])
   (:import [java.util.concurrent
             TimeUnit]
+           [io.netty.bootstrap
+            Bootstrap]
+           [io.netty.channel
+            Channel]
            [io.netty.util
             ResourceLeakDetector
             ResourceLeakDetector$Level]
-           [io.netty.bootstrap
-            ServerBootstrap]
-           [io.netty.buffer
-            PooledByteBufAllocator]
-           [io.netty.channel
-            ChannelOption
-            ChannelInitializer]
-           [io.netty.channel.socket
-            SocketChannel]
-           [io.netty.handler.flush
-            FlushConsolidationHandler]))
+           [io.netty.util.concurrent
+            EventExecutorGroup]
+           [io.netty.handler.ssl.util
+            SelfSignedCertificate]))
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 
-(defn server-pipeline
-  [user-handler executor]
-  (proxy [ChannelInitializer] []
-    (initChannel
-     [^SocketChannel ch]
-     (let [pipeline (.pipeline ch)]
-       (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
-       (.addLast pipeline executor "ring-handler" (ring/handler user-handler))
-       (http2/server-pipeline pipeline)))))
+(defn thread-counts
+  []
+  (let [total (- (* 2 (.availableProcessors (Runtime/getRuntime))) 3)
+        io-parent (inc (int (Math/floor (/ total 3.0))))
+        child-total (- (+ 2 total) io-parent)]
+    {:parent io-parent
+     :child (int (Math/floor (/ child-total 2)))
+     :worker (int (Math/ceil (/ child-total 2)))}))
+
+(defn shutdown-gracefully
+  [^EventExecutorGroup executor]
+  (.shutdownGracefully executor 10 100 TimeUnit/MILLISECONDS))
+
+(defn ^Channel channel-of
+  [^Bootstrap boot ^long port]
+  (-> boot (.bind port) .sync .channel))
 
 (defn server
   [handler]
-  (let [total-threads (- (* 2 (.availableProcessors (Runtime/getRuntime))) 3)
-        parent-threads (inc (int (Math/floor (/ total-threads 3.0))))
-        child-threads (- (+ 2 total-threads) parent-threads)
-        socket-chan (socket-chan)
-        parent-group (event-loop parent-threads)
-        child-group (event-loop (int (Math/floor (/ child-threads 2))))
-        user-executor (event-loop (int (Math/ceil (/ child-threads 2))))
-        port 8080]
-    (log/info (str "Starting Iny server at port " port))
+  (let [{:keys [parent child worker]} (thread-counts)
+        cert (SelfSignedCertificate.)
+        parent-group (event-loop parent)
+        child-group (event-loop child)
+        worker-group (event-loop worker)
+        port 8080
+        options {:parent-group parent-group
+                 :child-group child-group
+                 :worker-group worker-group
+                 :user-handler (ring/handler handler)
+                 :port port
+                 :cert cert}]
+    (log/info "Starting Iny server at port" port)
     (try
-      (let [boot (doto (ServerBootstrap.)
-                       (.option ChannelOption/SO_BACKLOG (int 1024))
-                       (.option ChannelOption/SO_REUSEADDR true)
-                       (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
-                       (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
-                       (.group parent-group child-group)
-                       (.channel socket-chan)
-                       (.childHandler (server-pipeline handler user-executor))
-                       (.childOption ChannelOption/SO_REUSEADDR true)
-                       (.childOption ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
-                       (.childOption ChannelOption/TCP_NODELAY true)
-                       (.childOption ChannelOption/ALLOCATOR (PooledByteBufAllocator. true)))
-            tcp-channel (-> boot (.bind port) .sync .channel)
-            udp-channel (-> (http3-boot port parent-group user-executor handler)
-                            (.bind port) .sync .channel)]
+      (let [tcp-channel (channel-of (http/bootstrap options) port)
+            udp-channel (channel-of (http3/bootstrap options) port)]
         (fn closer []
           (-> tcp-channel (.close) (.sync))
           (-> udp-channel (.close) (.sync))
-          (.shutdownGracefully parent-group 10 100 TimeUnit/MILLISECONDS)
-          (.shutdownGracefully child-group 10 100 TimeUnit/MILLISECONDS)
-          (.shutdownGracefully user-executor 10 100 TimeUnit/MILLISECONDS)))
-      (catch Exception e
-        (log/error "Iny server error:" e)
-        @(.shutdownGracefully parent-group 10 100 TimeUnit/MILLISECONDS)
-        @(.shutdownGracefully child-group 10 100 TimeUnit/MILLISECONDS)
-        @(.shutdownGracefully user-executor 10 100 TimeUnit/MILLISECONDS)))))
+          (shutdown-gracefully parent-group)
+          (shutdown-gracefully child-group)
+          (shutdown-gracefully worker-group)))
+      (catch Throwable e
+        (log/error "Iny server error" e)
+        @(shutdown-gracefully parent-group)
+        @(shutdown-gracefully child-group)
+        @(shutdown-gracefully worker-group)))))

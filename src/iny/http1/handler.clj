@@ -188,7 +188,7 @@
       (channelUnregistered [_ ctx]
         (when-let [ftr (first (reset-vals! date-future nil))]
           (.cancel ^ScheduledFuture ftr false)))
-      (channelRead [this ctx msg]
+      (channelRead [_ ctx msg]
         (cond
           (instance? HttpRequest msg)
           (let [keep-alive (reset! keep-alive? (HttpUtil/isKeepAlive msg))]
