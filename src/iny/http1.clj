@@ -8,4 +8,4 @@
 (defn server-pipeline
   [^ChannelPipeline pipeline executor]
   (.addBefore pipeline "ring-handler" "continue" (HttpServerExpectContinueHandler.))
-  (.addBefore pipeline "ring-handler" "http1-handler" (http-handler executor)))
+  (.addBefore pipeline "ring-handler" "iny-http1-inbound" (http-handler executor)))

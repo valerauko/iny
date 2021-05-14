@@ -1,5 +1,6 @@
 (ns iny.http2
   (:require [clojure.tools.logging :as log]
+            [iny.netty.handler :as handler]
             [iny.http1 :as http1]
             [iny.http2.handler :refer [http2-handler]])
   (:import [io.netty.util
@@ -20,27 +21,15 @@
 
 (defn ^ChannelHandler http-fallback
   [build-http-pipeline executor]
-  (reify
-    ChannelInboundHandler
-    (handlerAdded [_ _])
-    (handlerRemoved [_ _])
-    (exceptionCaught
-     [_ ctx ex]
-     (.fireExceptionCaught ctx ex))
-    (channelRegistered [_ ctx])
-    (channelUnregistered [_ ctx])
-    (channelActive [_ ctx])
-    (channelInactive [_ ctx])
+  (handler/inbound
     (channelRead
      [this ctx msg]
      (let [pipeline (.pipeline ctx)]
        ;; removes the h2c-upgrade handler (no upgrade was attempted)
        (build-http-pipeline pipeline executor)
        (.fireChannelRead ctx msg)
-       (.remove pipeline this)))
-    (channelReadComplete [_ ctx])
-    (userEventTriggered [_ ctx event])
-    (channelWritabilityChanged [_ ctx])))
+       (.remove pipeline HttpServerUpgradeHandler)
+       (.remove pipeline this)))))
 
 (let [builder (Http2FrameCodecBuilder/forServer)]
   (defn ^Http2FrameCodec codec

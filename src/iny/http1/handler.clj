@@ -12,23 +12,22 @@
   (:import [java.io
             InputStream
             IOException
+            OutputStream
             PipedInputStream
             PipedOutputStream]
            [java.net
             InetSocketAddress]
-           [io.netty.buffer
-            ByteBuf
-            ByteBufInputStream]
+           [java.util.concurrent
+            RejectedExecutionException]
            [io.netty.util.concurrent
-            EventExecutor]
+            ScheduledFuture]
            [io.netty.channel
             ChannelFuture
             ChannelFutureListener
             ChannelHandler
             ChannelHandlerContext
             ChannelInboundHandler
-            ChannelOutboundHandler
-            MultithreadEventLoopGroup]
+            ChannelOutboundHandler]
            [io.netty.handler.codec.http
             HttpUtil
             HttpContent
@@ -168,7 +167,7 @@
                         (.destroy ^HttpPostRequestDecoder decoder)
                         (reset! body-decoder nil))
                       (when-let [out-stream @stream]
-                        (.close ^PipedOutputStream out-stream)
+                        (.close ^OutputStream out-stream)
                         (reset! stream nil)))
                     (.write ctx msg promise))))]
           (.addBefore pipeline executor "ring-handler" out-name outbound)))
@@ -178,7 +177,8 @@
             (.remove pipeline out-name))))
       (exceptionCaught [_ ctx ex]
         (log/error ex)
-        (when-not (instance? IOException ex)
+        (when-not (or (instance? IOException ex)
+                      (instance? RejectedExecutionException ex))
           (respond-500 ctx ex))
         (.close ctx))
       (channelRegistered [_ ctx]
@@ -186,16 +186,13 @@
       (channelRead [_ ctx msg]
         (cond
           (instance? HttpRequest msg)
-          (let [keep-alive (HttpUtil/isKeepAlive msg)]
-            (reset! keep-alive? keep-alive)
+          (let [keep-alive (reset! keep-alive? (HttpUtil/isKeepAlive msg))]
             (cond
               ;; request without body
               (or (get? msg) (content-known-empty? msg))
-              (let [request (netty->ring-request
-                             ctx
-                             (InputStream/nullInputStream)
-                             msg)]
-                (.fireChannelRead ctx request))
+              (.fireChannelRead
+               ctx
+               (netty->ring-request ctx (InputStream/nullInputStream) msg))
 
               ;; TODO: figure out how to pass multipart
               (HttpPostRequestDecoder/isMultipart msg)
@@ -209,12 +206,17 @@
 
               ;; non-multipart request with body
               :else
-              (let [in-stream (PipedInputStream. (or (content-length msg) 65536))
-                    out-stream (PipedOutputStream. ^PipedInputStream in-stream)
-                    request (netty->ring-request ctx in-stream msg)]
-                (reset! stream out-stream)
-                (.fireChannelRead ctx request)
-                (.setAutoRead (.config (.channel ctx)) false))))
+              (let [^long len (or (content-length msg) 65536)]
+                (if (> len 0)
+                  (let [^PipedInputStream in-stream (PipedInputStream. len)
+                        out-stream (PipedOutputStream. in-stream)
+                        request (netty->ring-request ctx in-stream msg)]
+                    (reset! stream out-stream)
+                    (.fireChannelRead ctx request)
+                    (.setAutoRead (.config (.channel ctx)) false))
+                  (.fireChannelRead
+                   ctx
+                   (netty->ring-request ctx (InputStream/nullInputStream) msg))))))
 
           (instance? HttpContent msg)
           (cond-let
@@ -223,10 +225,10 @@
                   len (.readableBytes buf)]
               (try
                 (.getBytes buf 0 out-stream len)
-                (log/debug "wrote bytes to out-stream")
                 (catch IOException _))
               (when (instance? LastHttpContent msg)
                 (.close out-stream)
+                (reset! stream nil)
                 (.setAutoRead (.config (.channel ctx)) true)))
 
             [^HttpPostRequestDecoder decoder @body-decoder]

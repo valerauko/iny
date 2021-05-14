@@ -36,8 +36,8 @@
 
 (mapv
   (fn loader [pack]
-    (log/info (str "Loading " pack " support"))
-    (require (symbol (str "iny.native." (name pack)))))
+    (require (symbol (str "iny.native." (name pack))) :reload)
+    (log/info "Loaded" (name pack) "support"))
   (filter #(and % (not= % :nio)) packs))
 
 (defmethod available? :nio

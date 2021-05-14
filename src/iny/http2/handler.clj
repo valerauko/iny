@@ -176,8 +176,7 @@
        (cond
          (instance? Http2HeadersFrame msg)
          (let [msg ^Http2HeadersFrame msg
-               stream (.stream msg)]
-           (reset! http-stream stream)
+               stream (reset! http-stream (.stream msg))]
            (reset! responded? false)
            (cond
              ;; request without body
@@ -186,17 +185,14 @@
              ;; this is the "hot path," body-less GET requests
              (.fireChannelRead
                ctx
-               (netty->ring-request
-                ctx
-                (InputStream/nullInputStream)
-                msg))
+               (netty->ring-request ctx (InputStream/nullInputStream) msg))
 
              ;; request with body
              ;; netty's HttpPostRequestDecoder can't handle http/2 frames
              :else
              (let [^long len (or (content-length msg) 65536)]
                (if (> len 0)
-                 (let [in-stream ^PipedInputStream (PipedInputStream. ^long len)
+                 (let [^PipedInputStream in-stream (PipedInputStream. len)
                        out-stream (PipedOutputStream. in-stream)
                        request (netty->ring-request ctx in-stream msg)]
                    (reset! body-stream out-stream)
@@ -205,10 +201,7 @@
                  ;; in a funky edge-case it may be an empty body
                  (.fireChannelRead
                   ctx
-                  (netty->ring-request
-                   ctx
-                   (InputStream/nullInputStream)
-                   msg))))))
+                  (netty->ring-request ctx (InputStream/nullInputStream) msg))))))
 
          ;; body frames
          (instance? Http2DataFrame msg)
