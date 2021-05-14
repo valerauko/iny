@@ -4,7 +4,9 @@
             [iny.http2 :as http2]
             [iny.http3 :refer [http3-boot]]
             [iny.ring.handler :as ring])
-  (:import [io.netty.util
+  (:import [java.util.concurrent
+            TimeUnit]
+           [io.netty.util
             ResourceLeakDetector
             ResourceLeakDetector$Level]
            [io.netty.bootstrap
@@ -59,13 +61,13 @@
             udp-channel (-> (http3-boot port parent-group user-executor handler)
                             (.bind port) .sync .channel)]
         (fn closer []
-          (-> tcp-channel .close .sync)
-          (-> udp-channel .close .sync)
-          (.shutdownGracefully parent-group)
-          (.shutdownGracefully child-group)
-          (.shutdownGracefully user-executor)))
+          (-> tcp-channel (.close) (.sync))
+          (-> udp-channel (.close) (.sync))
+          (.shutdownGracefully parent-group 10 100 TimeUnit/MILLISECONDS)
+          (.shutdownGracefully child-group 10 100 TimeUnit/MILLISECONDS)
+          (.shutdownGracefully user-executor 10 100 TimeUnit/MILLISECONDS)))
       (catch Exception e
         (log/error "Iny server error:" e)
-        @(.shutdownGracefully parent-group)
-        @(.shutdownGracefully child-group)
-        @(.shutdownGracefully user-executor)))))
+        @(.shutdownGracefully parent-group 10 100 TimeUnit/MILLISECONDS)
+        @(.shutdownGracefully child-group 10 100 TimeUnit/MILLISECONDS)
+        @(.shutdownGracefully user-executor 10 100 TimeUnit/MILLISECONDS)))))
