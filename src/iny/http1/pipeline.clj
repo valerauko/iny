@@ -1,4 +1,4 @@
-(ns iny.http1
+(ns iny.http1.pipeline
   (:require [iny.http1.handler :refer [http-handler]])
   (:import [io.netty.channel
             ChannelPipeline]

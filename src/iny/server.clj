@@ -1,8 +1,8 @@
 (ns iny.server
   (:require [clojure.tools.logging :as log]
             [iny.native :refer [event-loop]]
-            [iny.http.channel :as http]
-            [iny.http3.channel :as http3]
+            [iny.channel.tcp :as http]
+            [iny.channel.quic :as http3]
             [iny.ring.handler :as ring])
   (:import [java.util.concurrent
             TimeUnit]

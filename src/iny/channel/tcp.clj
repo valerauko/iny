@@ -1,28 +1,13 @@
-(ns iny.http.channel
+(ns iny.channel.tcp
   (:require [clojure.tools.logging :as log]
             [iny.native :refer [socket-chan]]
-            [iny.http2 :as http2])
+            [iny.http.pipeline :refer [server-pipeline]])
   (:import [io.netty.bootstrap
             ServerBootstrap]
            [io.netty.channel
-            ChannelOption
-            ChannelInitializer]
-           [io.netty.channel.socket
-            SocketChannel]
+            ChannelOption]
            [io.netty.buffer
-            PooledByteBufAllocator]
-           [io.netty.handler.flush
-            FlushConsolidationHandler]))
-
-(defn server-pipeline
-  [{:keys [user-handler worker-group]}]
-  (proxy [ChannelInitializer] []
-    (initChannel
-     [^SocketChannel ch]
-     (let [pipeline (.pipeline ch)]
-       (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
-       (.addLast pipeline worker-group "ring-handler" user-handler)
-       (http2/server-pipeline pipeline)))))
+            PooledByteBufAllocator]))
 
 (defn ^ServerBootstrap bootstrap
   [{:keys [user-handler parent-group child-group worker-group] :as options}]
