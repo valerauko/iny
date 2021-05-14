@@ -61,7 +61,7 @@
 
 (defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
   [executor]
-  (let [http-codec (HttpServerCodec.)
+  (let [http-codec (HttpServerCodec. 4096 8192 65536)
         handler (http2-handler (codec) executor)
         factory (upgrade-factory handler)]
     (CleartextHttp2ServerUpgradeHandler.
