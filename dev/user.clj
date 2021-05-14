@@ -3,13 +3,16 @@
             [clojure.tools.namespace.repl :refer [refresh set-refresh-dirs]]
             [clojure.test :refer [run-tests]]
             [clojure.repl :refer :all]
-            [clojure.pprint :as pp]
+            [clojure.pprint :refer [pprint]]
             [mount.core :refer [defstate start stop]]
             [clj-async-profiler.core :as prof]
             [jsonista.core :as json]
             [iny.server :as server])
             ; [pohjavirta.server :as poh])
-  (:import [io.netty.util
+  (:import [iny Http3Client]
+           [java.io InputStream]
+           [java.nio.file Files Paths StandardCopyOption]
+           [io.netty.util
             ResourceLeakDetector
             ResourceLeakDetector$Level]
            [io.netty.buffer
@@ -34,14 +37,27 @@
       (require :reload test-var)
       (run-tests test-var))))
 
-(defn my-handler [{:keys [uri params body] :as request}]
-  (let [contents (slurp body)]
+(defn my-handler [{:keys [uri params ^InputStream body] :as request}]
+  (log/debug "user handler")
+  (let [body-size
+        ; "ignored how many"
+        (java.nio.file.Files/copy
+         body
+         (Paths/get "uploaded.jpg" (into-array String []))
+         ^"[Ljava.nio.file.CopyOption;"
+         (into-array StandardCopyOption
+                     [StandardCopyOption/REPLACE_EXISTING]))]
+    (.close body)
+    (log/debug "read body contents")
     {:status 200
-     :body (json/write-value-as-bytes {:message (str "Hello from " uri " using "
-                                                     (iny.native/socket-chan))
+     :body (json/write-value-as-bytes {:message (str "Hello from " uri)
                                        :params params
-                                       :body contents})
+                                       :body (str body-size " bytes")})
      :headers {"content-type" "application/json"}}))
+
+(defn http3
+  []
+  (Http3Client/main ^"[Ljava.lang.String" (into-array String [])))
 
 (defn reload
   []
