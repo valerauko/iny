@@ -14,6 +14,8 @@
     <logger name="io.netty.incubator.codec.quic" level="info" />
     <!-- don't need the warnings about frames in unknown (closed) streams -->
     <logger name="io.netty.util.internal.logging" level="info" />
+    <!-- thanks i know i'm running self-signed on localhost duh -->
+    <logger name="io.netty.handler.ssl" level="error" />
 
     <root level="debug">
         <appender-ref ref="STDOUT" />
