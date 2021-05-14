@@ -5,10 +5,10 @@
            [io.netty.util
             AsciiString]))
 
-(def alt-svc-name
+(def ^CharSequence alt-svc-name
   (AsciiString. "alt-svc"))
 
-(def alt-svc-value
+(def ^CharSequence alt-svc-value
   (->> (Http3/supportedApplicationProtocols)
        (seq)
        (map #(format "%s=\":8080\"; ma=2592000" %))

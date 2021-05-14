@@ -6,8 +6,6 @@
             [iny.ring.handler :as ring])
   (:import [java.util.concurrent
             TimeUnit]
-           [java.net
-            InetSocketAddress]
            [java.security.cert
             X509Certificate]
            [io.netty.bootstrap
@@ -27,15 +25,12 @@
             Http3HeadersFrame
             DefaultHttp3HeadersFrame
             DefaultHttp3DataFrame]
-           [io.netty.buffer
-            Unpooled]
            [io.netty.incubator.codec.quic
             InsecureQuicTokenHandler
             QuicChannel
             QuicServerCodecBuilder
             QuicSslContextBuilder
-            QuicStreamChannel]
-           [io.netty.util ReferenceCountUtil]))
+            QuicStreamChannel]))
 
 (defn init-stream
   [user-executor user-handler]
