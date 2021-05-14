@@ -9,11 +9,11 @@
             FlushConsolidationHandler]))
 
 (defn server-pipeline
-  [{:keys [user-handler worker-group]}]
+  [{:keys [user-handler worker-group] :as options}]
   (proxy [ChannelInitializer] []
     (initChannel
      [^SocketChannel ch]
      (let [pipeline (.pipeline ch)]
        (.addLast pipeline "optimize-flushes" (FlushConsolidationHandler.))
        (.addLast pipeline worker-group "ring-handler" user-handler)
-       (http2/server-pipeline pipeline)))))
+       (http2/server-pipeline pipeline options)))))

@@ -3,10 +3,13 @@
             [iny.netty.handler :as handler]
             [iny.http1.pipeline :as http1]
             [iny.http2.handler :refer [http2-handler]])
-  (:import [io.netty.util
+  (:import [iny
+            AlpnNegotiator]
+           [io.netty.util
             AsciiString]
            [io.netty.channel
             ChannelHandler
+            ChannelHandlerContext
             ChannelPipeline]
            [io.netty.handler.codec.http
             HttpServerCodec
@@ -18,16 +21,31 @@
             Http2MultiplexHandler
             CleartextHttp2ServerUpgradeHandler
             Http2ServerUpgradeCodec
-            Http2FrameCodec]))
+            Http2FrameCodec
+            Http2SecurityUtil]
+           [io.netty.handler.ssl
+            ApplicationProtocolConfig
+            ApplicationProtocolConfig$Protocol
+            ApplicationProtocolConfig$SelectedListenerFailureBehavior
+            ApplicationProtocolConfig$SelectorFailureBehavior
+            ApplicationProtocolNames
+            ApplicationProtocolNegotiationHandler
+            OpenSsl
+            SslContext
+            SslContextBuilder
+            SslProvider
+            SupportedCipherSuiteFilter]
+           [io.netty.handler.ssl.util
+            SelfSignedCertificate]))
 
 (defn ^ChannelHandler http-fallback
-  [build-http-pipeline]
+  []
   (handler/inbound
     (channelRead
      [this ctx msg]
      (let [pipeline (.pipeline ctx)]
        ;; removes the h2c-upgrade handler (no upgrade was attempted)
-       (build-http-pipeline pipeline)
+       (http1/server-pipeline pipeline)
        (.fireChannelRead ctx msg)
        (.remove pipeline HttpServerUpgradeHandler)
        (.remove pipeline this)))))
@@ -66,8 +84,50 @@
           (.addAfter pipeline (.name ctx) "http2-codec" codec)
           (.remove pipeline this)))))))
 
+(defn ^SslContext ssl-context
+  [{:keys [cert private-key]}]
+  (let [provider (if (OpenSsl/isAlpnSupported)
+                   SslProvider/OPENSSL
+                   SslProvider/JDK)]
+    (-> (SslContextBuilder/forServer cert private-key)
+        (.sslProvider provider)
+        (.ciphers Http2SecurityUtil/CIPHERS SupportedCipherSuiteFilter/INSTANCE)
+        (.applicationProtocolConfig
+         (ApplicationProtocolConfig.
+          ApplicationProtocolConfig$Protocol/ALPN
+          ApplicationProtocolConfig$SelectorFailureBehavior/NO_ADVERTISE
+          ApplicationProtocolConfig$SelectedListenerFailureBehavior/ACCEPT
+          ^Iterable [ApplicationProtocolNames/HTTP_2
+                     ApplicationProtocolNames/HTTP_1_1]))
+        (.build))))
+
 (defn server-pipeline
-  [^ChannelPipeline pipeline]
-  (.addBefore pipeline "ring-handler" "h2c-upgrade" (h2c-upgrade))
-  (.addBefore pipeline "ring-handler" "http-fallback"
-              (http-fallback http1/server-pipeline)))
+  [^ChannelPipeline pipeline {:keys [^SelfSignedCertificate cert]}]
+  (if cert
+    (let [ctx (ssl-context {:cert (.certificate cert)
+                            :private-key (.privateKey cert)})]
+      (.addBefore pipeline "ring-handler" "ssl-handler"
+                  (.newHandler ctx (.alloc (.channel pipeline))))
+      (.addBefore pipeline "ring-handler" "alpn-negotiator" (AlpnNegotiator.))
+      (.addBefore pipeline "ring-handler" "alpn-pipeline"
+                  (handler/inbound
+                   (channelRead [_ ctx msg]
+                     (log/info (.pipeline ctx))
+                     (.close ctx))
+                   (userEventTriggered [this ctx evt]
+                     (when (or (false? evt) (string? evt))
+                       (.remove pipeline this)
+                       (case evt
+                         "h2"
+                         (do
+                           (.addBefore pipeline "ring-handler" "http2-codec"
+                                       (http2-codec))
+                           (.addBefore pipeline "ring-handler" "iny-http2-inbound"
+                                       (http2-handler)))
+                         "http/1.1"
+                         (http1/server-pipeline pipeline)
+                         ;; otherwise shutdown, can't deal with it
+                         (.close ctx)))))))
+    (do
+      (.addBefore pipeline "ring-handler" "h2c-upgrade" (h2c-upgrade))
+      (.addBefore pipeline "ring-handler" "http-fallback" (http-fallback)))))

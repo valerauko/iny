@@ -38,19 +38,17 @@
   (-> boot (.bind port) .sync .channel))
 
 (defn server
-  [handler]
+  [handler & {:keys [port] :or {port 8080} :as options}]
   (let [{:keys [parent child worker]} (thread-counts)
-        cert (SelfSignedCertificate.)
         parent-group (event-loop parent)
         child-group (event-loop child)
         worker-group (event-loop worker)
-        port 8080
-        options {:parent-group parent-group
-                 :child-group child-group
-                 :worker-group worker-group
-                 :user-handler (ring/handler handler)
-                 :port port
-                 :cert cert}]
+        options (merge
+                 options
+                 {:parent-group parent-group
+                  :child-group child-group
+                  :worker-group worker-group
+                  :user-handler (ring/handler handler)})]
     (log/info "Starting Iny server at port" port)
     (try
       (let [tcp-channel (channel-of (http/bootstrap options) port)
