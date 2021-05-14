@@ -15,13 +15,12 @@ Everything before version 1.0.0 is to be considered experimental, buggy and unst
 A HTTP server library based on Netty to replace [Aleph](https://github.com/ztellman/aleph/).
 
 - [x] very basic HTTP server functionality
-- [ ] file uploading, chunked request/response handling
+- [x] file uploading, chunked request/response handling
 - [ ] websockets
-- [ ] HTTP/2
-- [ ] HTTP/3
-- [ ] API as compatible with Aleph as possible (so it can serve as a drop-in replacement)
+- [x] HTTP/2
+- [x] HTTP/3
 
-### Requirements
+### Goals
 
 * outperform or at least match Aleph speed
 * be buildable as a GraalVM native-image
