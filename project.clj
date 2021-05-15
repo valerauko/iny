@@ -38,6 +38,7 @@
                     "-Dvertx.threadChecks=false"
                     "-Dvertx.disableContextTimings=true"
                     "-Dvertx.disableTCCL=true"
+                    "-javaagent:vendor/prometheus.jar=8082:vendor/prometheus.yaml"
                     "-Djdk.attach.allowAttachSelf"]
                    :global-vars
                    {*warn-on-reflection* true
