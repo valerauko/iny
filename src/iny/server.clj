@@ -42,7 +42,11 @@
   (-> boot (.bind port) .sync .channel))
 
 (defn ^Closeable server
-  [handler & {:keys [port] :or {port 8080} :as options}]
+  [handler & {:keys [port http3]
+              :or {port 8080
+                   http2 true
+                   http3 true}
+              :as options}]
   (let [{:keys [parent child worker] :as threads} (thread-counts)
         parent-group (event-loop parent)
         child-group (event-loop child)
@@ -56,7 +60,8 @@
     (log/info "Starting Iny server at port" port)
     (try
       (let [tcp-channel (channel-of (http/bootstrap handler-options) port)
-            udp-channel (channel-of (http3/bootstrap handler-options) port)
+            udp-channel (when http3
+                          (channel-of (http3/bootstrap handler-options) port))
             closed? (atom false)]
         (reify
           Object
@@ -69,7 +74,7 @@
           (close [_]
             (when-not (first (reset-vals! closed? true))
               (-> tcp-channel (.close) (.sync))
-              (-> udp-channel (.close) (.sync))
+              (some-> udp-channel (.close) (.sync))
               (shutdown-gracefully parent-group)
               (shutdown-gracefully child-group)
               (shutdown-gracefully worker-group)))))
