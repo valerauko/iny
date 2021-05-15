@@ -18,9 +18,7 @@
             ResourceLeakDetector
             ResourceLeakDetector$Level]
            [io.netty.util.concurrent
-            EventExecutorGroup]
-           [io.netty.handler.ssl.util
-            SelfSignedCertificate]))
+            EventExecutorGroup]))
 
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
 

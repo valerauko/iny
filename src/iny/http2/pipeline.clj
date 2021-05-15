@@ -1,5 +1,6 @@
 (ns iny.http2.pipeline
   (:require [clojure.tools.logging :as log]
+            [iny.tls :refer [->ssl-context-builder]]
             [iny.netty.handler :as handler]
             [iny.http1.pipeline :as http1]
             [iny.http2.handler :refer [http2-handler]])
@@ -34,9 +35,7 @@
             SslContext
             SslContextBuilder
             SslProvider
-            SupportedCipherSuiteFilter]
-           [io.netty.handler.ssl.util
-            SelfSignedCertificate]))
+            SupportedCipherSuiteFilter]))
 
 (defn ^ChannelHandler http-fallback
   []
@@ -90,11 +89,11 @@
           (.remove pipeline this)))))))
 
 (defn ^SslContext ssl-context
-  [{:keys [cert private-key]}]
+  [ssl-opts]
   (let [provider (if (OpenSsl/isAlpnSupported)
                    SslProvider/OPENSSL
                    SslProvider/JDK)]
-    (-> (SslContextBuilder/forServer cert private-key)
+    (-> ^SslContextBuilder (->ssl-context-builder ssl-opts)
         (.sslProvider provider)
         (.ciphers Http2SecurityUtil/CIPHERS SupportedCipherSuiteFilter/INSTANCE)
         (.applicationProtocolConfig
@@ -102,15 +101,15 @@
           ApplicationProtocolConfig$Protocol/ALPN
           ApplicationProtocolConfig$SelectorFailureBehavior/NO_ADVERTISE
           ApplicationProtocolConfig$SelectedListenerFailureBehavior/ACCEPT
-          ^Iterable [ApplicationProtocolNames/HTTP_2
-                     ApplicationProtocolNames/HTTP_1_1]))
+          ^"[Ljava.lang.String;"
+          (into-array String [ApplicationProtocolNames/HTTP_2
+                              ApplicationProtocolNames/HTTP_1_1])))
         (.build))))
 
 (defn server-pipeline
-  [^ChannelPipeline pipeline {:keys [^SelfSignedCertificate cert]}]
-  (if cert
-    (let [ctx (ssl-context {:cert (.certificate cert)
-                            :private-key (.privateKey cert)})]
+  [^ChannelPipeline pipeline {:keys [ssl]}]
+  (if ssl
+    (let [ctx (ssl-context ssl)]
       (.addBefore pipeline "ring-handler" "ssl-handler"
                   (.newHandler ctx (.alloc (.channel pipeline))))
       (.addBefore pipeline "ring-handler" "alpn-negotiator" (AlpnNegotiator.))

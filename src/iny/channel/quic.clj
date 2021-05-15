@@ -2,6 +2,7 @@
   (:require [clojure.tools.logging :as log]
             [clojure.string :refer [join]]
             [iny.native :as native]
+            [iny.tls :refer [->ssl-opts ->ssl-context-builder]]
             [iny.http3.pipeline :as http3])
   (:import [java.util.concurrent
             TimeUnit]
@@ -21,12 +22,9 @@
             QuicSslContextBuilder]))
 
 (defn ^QuicServerCodecBuilder quic-builder
-  [{:keys [worker-group user-handler ^SelfSignedCertificate cert]
-    :or {cert (SelfSignedCertificate.)}}]
-  (let [ssl-context (-> (QuicSslContextBuilder/forServer
-                         (.key cert) nil
-                         ^"[Ljava.security.cert.X509Certificate;"
-                         (into-array X509Certificate [(.cert cert)]))
+  [{:keys [worker-group user-handler ^iny.tls.SslOpts ssl]
+    :or {ssl (->ssl-opts (SelfSignedCertificate.))}}]
+  (let [ssl-context (-> ^QuicSslContextBuilder (->ssl-context-builder ssl)
                         (.applicationProtocols
                          (Http3/supportedApplicationProtocols))
                         (.build))]
