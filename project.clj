@@ -13,7 +13,11 @@
                  [io.netty/netty-codec "4.1.63.Final"]
                  [io.netty/netty-handler "4.1.63.Final"]
                  [io.netty/netty-codec-http "4.1.63.Final"]
-                 [io.netty/netty-codec-http2 "4.1.63.Final"]]
+                 [io.netty/netty-codec-http2 "4.1.63.Final"]
+                 [io.netty.incubator/netty-incubator-codec-quic "0.0.12.Final"
+                  :classifier "linux-x86_64"]
+                 [io.netty.incubator/netty-incubator-codec-http3 "0.0.3.Final"
+                  :exclusions [io.netty.incubator/netty-incubator-codec-quic]]]
 
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
 
@@ -48,12 +52,9 @@
                     [org.clojure/tools.namespace "1.1.0"]
                     [io.netty.incubator/netty-incubator-transport-native-io_uring "0.0.5.Final"
                      :classifier "linux-x86_64"]
-                    [io.netty.incubator/netty-incubator-codec-quic "0.0.12.Final"
-                     :classifier "linux-x86_64"]
-                    [io.netty.incubator/netty-incubator-codec-http3 "0.0.3.Final"
-                     :exclusions [io.netty.incubator/netty-incubator-codec-quic]]
                     [io.netty/netty-transport-native-epoll "4.1.63.Final"
                      :classifier "linux-x86_64"]
+                    [io.netty/netty-transport-native-kqueue "4.1.63.Final"]
                     [mount "0.1.16"]
                     [metosin/jsonista "0.3.2"]
                     [ch.qos.logback/logback-classic "1.2.3"]
