@@ -40,15 +40,20 @@
 
 (defn ^ChannelHandler http-fallback
   []
-  (handler/inbound
-    (channelRead
-     [this ctx msg]
-     (let [pipeline (.pipeline ctx)]
-       ;; removes the h2c-upgrade handler (no upgrade was attempted)
-       (http1/server-pipeline pipeline)
-       (.fireChannelRead ctx msg)
-       (.remove pipeline HttpServerUpgradeHandler)
-       (.remove pipeline this)))))
+  (let [called? (atom false)]
+    (handler/inbound
+     (channelRead
+      [this ctx msg]
+      (if-not (first (reset-vals! called? true))
+        (let [pipeline (.pipeline ctx)]
+          ;; removes the h2c-upgrade handler (no upgrade was attempted)
+          (http1/server-pipeline pipeline)
+          (.fireChannelRead ctx msg)
+          ;; it's only there for cleartext
+          (when (.get pipeline HttpServerUpgradeHandler)
+            (.remove pipeline HttpServerUpgradeHandler))
+          (.remove pipeline this))
+        (.fireChannelRead ctx msg))))))
 
 (let [builder (Http2FrameCodecBuilder/forServer)]
   (defn ^Http2FrameCodec http2-codec

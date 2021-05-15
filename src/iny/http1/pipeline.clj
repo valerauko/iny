@@ -16,4 +16,5 @@
                 (HttpResponseEncoder.)))
   (.addBefore pipeline "ring-handler" "continue" (HttpServerExpectContinueHandler.))
   (.addBefore pipeline "ring-handler" "iny-http1-inbound" (http-handler))
-  (.remove pipeline HttpServerCodec))
+  ;; called from here and there, might not have codec in pipeline
+  (when (.get pipeline HttpServerCodec) (.remove pipeline HttpServerCodec)))
