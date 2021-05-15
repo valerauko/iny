@@ -9,6 +9,7 @@
            [io.netty.channel.nio
             NioEventLoopGroup]
            [io.netty.channel.socket.nio
+            NioDatagramChannel
             NioServerSocketChannel]))
 
 (def packs
@@ -32,6 +33,11 @@
 (defmulti ^Class socket-chan
   (fn socket-dispatch
     ([] (socket-dispatch nil))
+    ([pack] (some #{pack} packs))))
+
+(defmulti ^Class datagram-chan
+  (fn datagram-dispatch
+    ([] (datagram-dispatch nil))
     ([pack] (some #{pack} packs))))
 
 (mapv
@@ -77,6 +83,14 @@
   NioServerSocketChannel)
 
 (defmethod socket-chan :default
+  []
+  (socket-chan (wanted)))
+
+(defmethod datagram-chan :nio
+  [_]
+  NioDatagramChannel)
+
+(defmethod datagram-chan :default
   []
   (socket-chan (wanted)))
 

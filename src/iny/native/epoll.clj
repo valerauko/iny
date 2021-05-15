@@ -1,6 +1,7 @@
 (ns iny.native.epoll
   (:import [io.netty.channel.epoll
             Epoll
+            EpollDatagramChannel
             EpollEventLoopGroup
             EpollServerSocketChannel]))
 
@@ -15,3 +16,7 @@
 (defmethod iny.native/socket-chan :epoll
   [_]
   EpollServerSocketChannel)
+
+(defmethod iny.native/datagram-chan :epoll
+  [_]
+  EpollDatagramChannel)

@@ -1,6 +1,7 @@
 (ns iny.channel.quic
   (:require [clojure.tools.logging :as log]
             [clojure.string :refer [join]]
+            [iny.native :as native]
             [iny.http3.pipeline :as http3])
   (:import [java.util.concurrent
             TimeUnit]
@@ -46,5 +47,5 @@
   [{:keys [parent-group] :as options}]
   (doto (Bootstrap.)
         (.group parent-group)
-        (.channel IOUringDatagramChannel)
+        (.channel (native/datagram-chan))
         (.handler (.build (quic-builder options)))))
