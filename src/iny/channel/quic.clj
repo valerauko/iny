@@ -10,6 +10,10 @@
             X509Certificate]
            [io.netty.bootstrap
             Bootstrap]
+           [io.netty.buffer
+            PooledByteBufAllocator]
+           [io.netty.channel
+            ChannelOption]
            [io.netty.handler.ssl.util
             SelfSignedCertificate]
            [io.netty.incubator.channel.uring
@@ -22,9 +26,8 @@
             QuicSslContextBuilder]))
 
 (defn ^QuicServerCodecBuilder quic-builder
-  [{:keys [worker-group user-handler ^iny.tls.SslOpts ssl]
-    :or {ssl (->ssl-opts (SelfSignedCertificate.))}}]
-  (let [ssl-context (-> ^QuicSslContextBuilder (->ssl-context-builder ssl)
+  [{:keys [worker-group user-handler ssl] :as options}]
+  (let [ssl-context (-> ^QuicSslContextBuilder (->ssl-context-builder ssl :quic)
                         (.applicationProtocols
                          (Http3/supportedApplicationProtocols))
                         (.build))]
@@ -44,6 +47,9 @@
 (defn ^Bootstrap bootstrap
   [{:keys [parent-group] :as options}]
   (doto (Bootstrap.)
+        (.option ChannelOption/SO_REUSEADDR true)
+        (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
+        (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
         (.group parent-group)
         (.channel (native/datagram-chan))
         (.handler (.build (quic-builder options)))))

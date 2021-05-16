@@ -92,7 +92,7 @@
 
 (defmethod datagram-chan :default
   []
-  (socket-chan (wanted)))
+  (datagram-chan (wanted)))
 
 (defn version-of
   [netty-pkg]
