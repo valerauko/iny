@@ -192,25 +192,13 @@
         (cond
           (instance? HttpRequest msg)
           (let [keep-alive (reset! keep-alive? (HttpUtil/isKeepAlive msg))]
-            (cond
+            (if (or (get? msg) (content-known-empty? msg))
               ;; request without body
-              (or (get? msg) (content-known-empty? msg))
               (.fireChannelRead
                ctx
                (netty->ring-request ctx (InputStream/nullInputStream) msg))
 
-              ;; TODO: figure out how to pass multipart
-              (HttpPostRequestDecoder/isMultipart msg)
-              (let [decoder-instance (HttpPostRequestDecoder. data-factory msg)
-                    request (netty->ring-request
-                             ctx
-                             (InputStream/nullInputStream)
-                             msg)]
-                (.fireChannelRead ctx request)
-                (reset! body-decoder decoder-instance))
-
-              ;; non-multipart request with body
-              :else
+              ;; else request with body
               (let [^long len (or (content-length msg) 65536)]
                 (if (> len 0)
                   (let [^PipedInputStream in-stream (PipedInputStream. len)
@@ -224,8 +212,7 @@
                    (netty->ring-request ctx (InputStream/nullInputStream) msg))))))
 
           (instance? HttpContent msg)
-          (cond-let
-            [^PipedOutputStream out-stream @stream]
+          (when-let [^PipedOutputStream out-stream @stream]
             (let [buf (.content ^HttpContent msg)
                   len (.readableBytes buf)]
               (try
@@ -234,12 +221,7 @@
               (when (instance? LastHttpContent msg)
                 (.close out-stream)
                 (reset! stream nil)
-                (.setAutoRead (.config (.channel ctx)) true)))
+                (.setAutoRead (.config (.channel ctx)) true)))))
 
-            [^HttpPostRequestDecoder decoder @body-decoder]
-            (.offer decoder ^HttpContent msg)))
-
-          ; :else
-          ; (log/info (class msg)))
-
-        (release msg)))))
+        (release msg)
+        (log/debug "Finished processing" (class msg))))))
