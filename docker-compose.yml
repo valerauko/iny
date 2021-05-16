@@ -1,7 +1,7 @@
 version: '3'
 services:
   server:
-    image: clojure:openjdk-11-lein-2.9.5-buster
+    image: clojure:openjdk-16-lein-2.9.5-buster
     working_dir: /usr/local/iny
     command: lein repl :headless :host 0.0.0.0 :port 42001
     ports:
