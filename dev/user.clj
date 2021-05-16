@@ -9,6 +9,7 @@
             [mount.core :refer [defstate start stop]]
             [clj-async-profiler.core :as prof]
             [jsonista.core :as json]
+            [iny.interop :refer [->typed-array]]
             [iny.server :as server]
             [iny.tls :refer [->ssl-opts]])
             ; [pohjavirta.server :as poh])
@@ -59,9 +60,8 @@
         (java.nio.file.Files/copy
          body
          (Paths/get "uploaded.jpg" (into-array String []))
-         ^"[Ljava.nio.file.CopyOption;"
-         (into-array StandardCopyOption
-                     [StandardCopyOption/REPLACE_EXISTING]))]
+         (->typed-array StandardCopyOption
+                        [StandardCopyOption/REPLACE_EXISTING]))]
     (.close body)
     {:status 200
      :body (json/write-value-as-bytes {:message (str "Hello from " uri)
