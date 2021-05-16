@@ -7,7 +7,8 @@
             [mount.core :refer [defstate start stop]]
             [clj-async-profiler.core :as prof]
             [jsonista.core :as json]
-            [iny.server :as server])
+            [iny.server :as server]
+            [iny.tls :refer [->ssl-opts]])
             ; [pohjavirta.server :as poh])
   (:import [iny Http3Client]
            [java.io InputStream]
@@ -15,8 +16,8 @@
            [io.netty.util
             ResourceLeakDetector
             ResourceLeakDetector$Level]
-           [io.netty.buffer
-            ByteBufInputStream]))
+           [io.netty.handler.ssl.util
+            SelfSignedCertificate]))
 
 (set-refresh-dirs "dev" "src/iny" "resources")
 (ResourceLeakDetector/setLevel ResourceLeakDetector$Level/DISABLED)
@@ -73,7 +74,8 @@
 
 (defstate server
   :start
-  (server/server my-handler)
+  ;; :ssl (->ssl-opts (SelfSignedCertificate.))
+  (server/server my-handler :http2 false :http3 false)
   :stop
   (.close server))
 
