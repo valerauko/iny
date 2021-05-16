@@ -178,7 +178,7 @@
         (when-not (or (instance? IOException ex)
                       (instance? RejectedExecutionException ex))
           (respond-500 ctx ex))
-        (.close ctx))
+        (.close ctx (.voidPromise ctx)))
       (channelRegistered [_ ctx]
         (reset! date-future (schedule-date-value-update ctx)))
       (channelUnregistered [_ ctx]

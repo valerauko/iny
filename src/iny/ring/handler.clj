@@ -10,6 +10,9 @@
 (defn ^ChannelInboundHandler handler
   [user-handler]
   (handler/inbound
+    (exceptionCaught [_ ctx ex]
+      (log/warn ex)
+      (.close ctx (.voidPromise ctx)))
     (channelRead [_ ctx msg]
       (when (instance? RingRequest msg)
         (let [result (user-handler msg)]
