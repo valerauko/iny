@@ -8,6 +8,9 @@
             ChannelOption]
            [io.netty.buffer
             PooledByteBufAllocator]))
+           ; [io.netty.handler.logging
+           ;  LogLevel
+           ;  LoggingHandler]))
 
 (defn ^ServerBootstrap bootstrap
   [{:keys [user-handler parent-group child-group worker-group] :as options}]
@@ -16,6 +19,7 @@
         (.option ChannelOption/SO_REUSEADDR true)
         (.option ChannelOption/MAX_MESSAGES_PER_READ Integer/MAX_VALUE)
         (.option ChannelOption/ALLOCATOR (PooledByteBufAllocator. true))
+        ; (.handler (LoggingHandler. LogLevel/DEBUG))
         (.group parent-group child-group)
         (.channel (socket-chan))
         (.childHandler (server-pipeline options))

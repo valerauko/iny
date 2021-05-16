@@ -14,7 +14,7 @@
       (log/warn ex)
       (.close ctx (.voidPromise ctx)))
     (channelRead [_ ctx msg]
-      (when (instance? RingRequest msg)
+      (when (map? msg)
         (let [result (user-handler msg)]
           (.writeAndFlush ctx result (.voidPromise ctx))))
       (release msg))))

@@ -39,9 +39,8 @@
       (run-tests test-var))))
 
 (defn my-handler [{:keys [uri params ^InputStream body] :as request}]
-  (log/debug "user handler")
+  ; (log/debug (with-out-str (println) (pprint request)))
   (let [body-size
-        ; "ignored how many"
         (java.nio.file.Files/copy
          body
          (Paths/get "uploaded.jpg" (into-array String []))
@@ -49,7 +48,6 @@
          (into-array StandardCopyOption
                      [StandardCopyOption/REPLACE_EXISTING]))]
     (.close body)
-    (log/debug "read body contents")
     {:status 200
      :body (json/write-value-as-bytes {:message (str "Hello from " uri)
                                        :params params
@@ -75,9 +73,9 @@
 (defstate server
   :start
   ;; :ssl (->ssl-opts (SelfSignedCertificate.))
-  (server/server my-handler :http2 false :http3 false)
+  (server/server my-handler :http2 true :http3 false)
   :stop
-  (.close server))
+  (.close ^java.io.Closeable server))
 
 ; (defstate poh
 ;   :start
