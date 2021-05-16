@@ -77,7 +77,7 @@
               (shutdown-gracefully child-group)
               (shutdown-gracefully worker-group)))))
       (catch Throwable e
-        (log/error "Iny server error" e)
         @(shutdown-gracefully parent-group)
         @(shutdown-gracefully child-group)
-        @(shutdown-gracefully worker-group)))))
+        @(shutdown-gracefully worker-group)
+        (throw e)))))
