@@ -146,7 +146,6 @@
 (defn ^ChannelHandler http-handler
   []
   (let [stream (atom nil)
-        body-decoder (atom nil)
         keep-alive? (atom false)
         date-future (atom nil)
         out-name "iny-http1-outbound"]
@@ -165,9 +164,6 @@
                          ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
                         (when-not @keep-alive?
                           (.addListener ftr ChannelFutureListener/CLOSE)))
-                      (when-let [decoder @body-decoder]
-                        (.destroy ^HttpPostRequestDecoder decoder)
-                        (reset! body-decoder nil))
                       (when-let [out-stream @stream]
                         (.close ^OutputStream out-stream)
                         (reset! stream nil)))
@@ -221,7 +217,4 @@
               (when (instance? LastHttpContent msg)
                 (.close out-stream)
                 (reset! stream nil)
-                (.setAutoRead (.config (.channel ctx)) true)))))
-
-        (release msg)
-        (log/debug "Finished processing" (class msg))))))
+                (.setAutoRead (.config (.channel ctx)) true)))))))))
