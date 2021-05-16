@@ -72,7 +72,7 @@
           (close [_]
             (when-not (first (reset-vals! closed? true))
               (-> tcp-channel (.close) (.sync))
-              (some-> udp-channel (.close) (.sync))
+              (when http3 (-> udp-channel (.close) (.sync)))
               (shutdown-gracefully parent-group)
               (shutdown-gracefully child-group)
               (shutdown-gracefully worker-group)))))
