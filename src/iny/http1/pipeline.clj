@@ -1,9 +1,12 @@
 (ns iny.http1.pipeline
-  (:require [iny.netty.handler :as handler]
+  (:require [clojure.tools.logging :as log]
+            [iny.netty.handler :as handler]
             [iny.http1.handler :refer [http-handler]]
             [iny.tls :refer [->ssl-context-builder]])
   (:import [io.netty.channel
-            ChannelPipeline]
+            ChannelPipeline
+            ChannelHandler
+            ChannelHandler$Sharable]
            [io.netty.handler.codec.http
             HttpRequestDecoder
             HttpResponseEncoder
@@ -11,6 +14,12 @@
             HttpServerExpectContinueHandler]
            [io.netty.handler.ssl
             SslContextBuilder]))
+
+(def ^{ChannelHandler$Sharable true :tag ChannelHandler} read-more
+  (handler/inbound
+   (channelRead [_ ctx msg]
+    (.fireChannelRead ctx msg)
+    (.read ctx))))
 
 (defn server-pipeline
   ([pipeline] (server-pipeline pipeline {}))
@@ -23,11 +32,7 @@
    ;; HACK: fix the problem of the channel getting "stuck" with chunked
    ;; requests. i have no idea why this is necessary... autoRead just
    ;; doesn't seem to function the way it does with the http/2 codecs
-   (.addBefore pipeline "ring-handler" "read-more"
-               (handler/inbound
-                (channelRead [_ ctx msg]
-                 (.fireChannelRead ctx msg)
-                 (.read ctx))))
+   (.addBefore pipeline "ring-handler" "read-more" read-more)
 
    (when-not (.get pipeline HttpServerCodec)
      (.addBefore pipeline "ring-handler" "http-inbound"

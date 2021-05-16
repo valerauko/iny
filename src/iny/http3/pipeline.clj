@@ -1,5 +1,6 @@
 (ns iny.http3.pipeline
-  (:require [iny.http1.handler :refer [http-handler]])
+  (:require [iny.http1.pipeline :refer [read-more]]
+            [iny.http1.handler :refer [http-handler]])
   (:import [io.netty.channel
             ChannelInitializer]
            [io.netty.incubator.codec.http3
@@ -17,6 +18,7 @@
     (initChannel [^QuicStreamChannel ch]
       (let [pipeline (.pipeline ch)]
         (.addLast pipeline "http3-codec" (Http3FrameToHttpObjectCodec. true))
+        (.addLast pipeline "read-more" read-more)
         (.addLast pipeline worker-group "ring-handler" user-handler)
         (.addBefore pipeline "ring-handler" "http-handler" (http-handler))))))
 
