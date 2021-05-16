@@ -65,10 +65,6 @@
   (refresh)
   (start))
 
-(defstate agents
-  :start :noop
-  :stop (shutdown-agents))
-
 (defstate perf-files
   :start
   (prof/serve-files 8081)
