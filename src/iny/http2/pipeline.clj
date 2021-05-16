@@ -1,5 +1,6 @@
 (ns iny.http2.pipeline
   (:require [clojure.tools.logging :as log]
+            [iny.interop :refer [->typed-array]]
             [iny.tls :refer [->ssl-context-builder]]
             [iny.netty.handler :as handler]
             [iny.http1.pipeline :as http1]
@@ -68,8 +69,7 @@
         "h2c"
         (Http2ServerUpgradeCodec.
          codec
-         ^"[Lio.netty.channel.ChannelHandler;"
-         (into-array ChannelHandler [http2-handler]))))))
+         (->typed-array ChannelHandler [http2-handler]))))))
 
 (defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
   []
@@ -101,9 +101,8 @@
           ApplicationProtocolConfig$Protocol/ALPN
           ApplicationProtocolConfig$SelectorFailureBehavior/NO_ADVERTISE
           ApplicationProtocolConfig$SelectedListenerFailureBehavior/ACCEPT
-          ^"[Ljava.lang.String;"
-          (into-array String [ApplicationProtocolNames/HTTP_2
-                              ApplicationProtocolNames/HTTP_1_1])))
+          (->typed-array String [ApplicationProtocolNames/HTTP_2
+                                 ApplicationProtocolNames/HTTP_1_1])))
         (.build))))
 
 (defn server-pipeline
