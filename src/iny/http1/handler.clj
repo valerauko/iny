@@ -217,4 +217,5 @@
               (when (instance? LastHttpContent msg)
                 (.close out-stream)
                 (reset! stream nil)
-                (.setAutoRead (.config (.channel ctx)) true)))))))))
+                (.setAutoRead (.config (.channel ctx)) true)))))
+        (release msg)))))
