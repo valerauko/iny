@@ -17,6 +17,8 @@
             RejectedExecutionException]
            [io.netty.util
             AsciiString]
+           [io.netty.util.concurrent
+            ScheduledFuture]
            [io.netty.channel
             ChannelFuture
             ChannelFutureListener
@@ -125,11 +127,13 @@
         ;;   maybe with Http2MultiplexHandler?
         http-stream (atom nil)
         body-stream (atom nil)
+        date-future (atom nil)
         responded? (atom false)
         out-name "iny-http2-outbound"]
     (handler/inbound
       (handlerAdded
        [_ ctx]
+       (reset! date-future (schedule-date-value-update ctx))
        (let [pipeline (.pipeline ctx)
              ring-executor (-> pipeline (.context "ring-handler") (.executor))
              outbound
@@ -148,6 +152,8 @@
          (.addBefore pipeline ring-executor "ring-handler" out-name outbound)))
       (handlerRemoved
        [_ ctx]
+       (when-let [ftr (first (reset-vals! date-future nil))]
+         (.cancel ^ScheduledFuture ftr false))
        (let [pipeline (.pipeline ctx)]
          (when (.get pipeline out-name)
            (.remove pipeline out-name))))
@@ -164,9 +170,6 @@
          (instance? RejectedExecutionException ex)
          (respond ctx nil {:status 503}))
        (.close ctx))
-      (channelRegistered
-       [_ ctx]
-       (schedule-date-value-update ctx))
       (channelRead
        [_ ctx msg]
        (cond
