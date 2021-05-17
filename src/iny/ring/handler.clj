@@ -15,6 +15,11 @@
       (.close ctx (.voidPromise ctx)))
     (channelRead [_ ctx msg]
       (when (map? msg)
-        (let [result (user-handler msg)]
-          (.writeAndFlush ctx result (.voidPromise ctx))))
+        (let [stream (:iny.http2/stream msg)
+              result (user-handler (dissoc msg :iny.http2/stream))]
+          (.writeAndFlush ctx
+                          (if stream
+                            (assoc result :iny.http2/stream stream)
+                            (dissoc result :iny.http2/stream))
+                          (.voidPromise ctx))))
       (release msg))))

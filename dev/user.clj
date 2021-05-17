@@ -67,7 +67,8 @@
      :body (json/write-value-as-bytes {:message (str "Hello from " uri)
                                        :params params
                                        :body (str body-size " bytes")})
-     :headers {"content-type" "application/json"}}))
+     :headers {"content-type" "application/json"}
+     :iny.http2/push (when (= uri "/") ["/favicon.ico"])}))
 
 (defn reload
   []

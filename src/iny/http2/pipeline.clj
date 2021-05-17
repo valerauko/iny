@@ -17,8 +17,12 @@
             HttpServerCodec
             HttpServerUpgradeHandler
             HttpServerUpgradeHandler$UpgradeCodecFactory]
+           ; [io.netty.handler.logging
+           ;  LogLevel
+           ;  LoggingHandler]
            [io.netty.handler.codec.http2
             Http2FrameCodecBuilder
+            Http2ChannelDuplexHandler
             Http2CodecUtil
             Http2MultiplexHandler
             CleartextHttp2ServerUpgradeHandler
@@ -37,6 +41,10 @@
             SslContextBuilder
             SslProvider
             SupportedCipherSuiteFilter]))
+
+(defn ^Http2ChannelDuplexHandler duplex
+  []
+  (proxy [Http2ChannelDuplexHandler] []))
 
 (defn ^ChannelHandler http-fallback
   []
@@ -86,6 +94,7 @@
           (.remove pipeline "http-fallback")
           (.addAfter pipeline (.name ctx) "iny-http2-inbound" handler)
           (.addAfter pipeline (.name ctx) "http2-codec" codec)
+          (.addAfter pipeline (.name ctx) "http2-duplex" (duplex))
           (.remove pipeline this)))))))
 
 (defn ^SslContext ssl-context
@@ -125,6 +134,10 @@
                          (do
                            (.addBefore pipeline "ring-handler" "http2-codec"
                                        (http2-codec))
+                           ; (.addBefore pipeline "ring-handler" "logger"
+                           ;             (LoggingHandler. LogLevel/DEBUG))
+                           (.addBefore pipeline "ring-handler" "http2-duplex"
+                                       (duplex))
                            (.addBefore pipeline "ring-handler" "iny-http2-inbound"
                                        (http2-handler)))
                          "http/1.1"

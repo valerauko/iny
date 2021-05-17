@@ -37,6 +37,7 @@
             DefaultHttp2DataFrame
             DefaultHttp2GoAwayFrame
             DefaultHttp2HeadersFrame
+            DefaultHttp2PushPromiseFrame
             DefaultHttp2ResetFrame
             DefaultHttp2WindowUpdateFrame
             ;;
@@ -63,10 +64,37 @@
      body
      (.indexOf path (int 63)))))
 
+(defn push-response
+  [^ChannelHandlerContext ctx ^Http2FrameStream stream ^String path]
+  (let [duplex (.get (.pipeline ctx) "http2-duplex")
+        push-headers (doto (DefaultHttp2Headers. false)
+                           (.method "GET")
+                           (.scheme "https")
+                           (.authority "localhost:8080")
+                           (.path path))
+        push-stream (.newStream duplex)
+        promise-frame (doto (DefaultHttp2PushPromiseFrame. push-headers)
+                            (.stream stream)
+                            (.pushStream push-stream))]
+      (doto (.write ctx promise-frame)
+            (.addListener ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
+            (.addListener
+             (reify ChannelFutureListener
+              (operationComplete [_ ftr]
+                (.fireChannelRead
+                 ctx
+                 (assoc
+                  (netty->ring-request
+                   ctx
+                   (InputStream/nullInputStream)
+                   (DefaultHttp2HeadersFrame. push-headers))
+                  :iny.http2/stream push-stream))))))))
+
 (defn ^ChannelFuture respond
   [^ChannelHandlerContext ctx
    ^Http2FrameStream stream
-   {:keys [body headers status]}]
+   {:keys [body headers status]
+    :iny.http2/keys [push]}]
   (let [status (->status status)
         buffer (when body (->buffer body ctx))
         headers (doto (->headers headers)
@@ -79,6 +107,7 @@
         headers-frame (doto (DefaultHttp2HeadersFrame. headers)
                             (.stream stream))]
     (.write ctx headers-frame (.voidPromise ctx))
+    (when push (doseq [path push] (push-response ctx stream path)))
     (if body
       (let [data-frame (doto (DefaultHttp2DataFrame. buffer true)
                              (.stream stream))]
@@ -143,7 +172,7 @@
                 (.close ctx))
               (write [_ ctx msg promise]
                 (if (map? msg)
-                  (doto (respond ctx @http-stream msg)
+                  (doto (respond ctx (or (:iny.http2/stream msg) @http-stream) msg)
                     (.addListener ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
                     (.addListener (reify ChannelFutureListener
                                     (operationComplete [_ _]
