@@ -26,6 +26,7 @@
            [io.netty.handler.codec.http
             HttpHeaderNames]
            [io.netty.handler.codec.http2
+            Http2ChannelDuplexHandler
             Http2Error
             Http2Exception
             Http2FrameCodec
@@ -66,7 +67,7 @@
 
 (defn push-response
   [^ChannelHandlerContext ctx ^Http2FrameStream stream ^String path]
-  (let [duplex (.get (.pipeline ctx) "http2-duplex")
+  (let [duplex ^Http2ChannelDuplexHandler (.get (.pipeline ctx) "http2-duplex")
         push-headers (doto (DefaultHttp2Headers. false)
                            (.method "GET")
                            (.scheme "https")
