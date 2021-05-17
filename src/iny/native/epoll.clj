@@ -1,5 +1,7 @@
 (ns iny.native.epoll
-  (:import [io.netty.channel.epoll
+  (:import [java.util.concurrent
+            ThreadFactory]
+           [io.netty.channel.epoll
             Epoll
             EpollDatagramChannel
             EpollEventLoopGroup
@@ -10,8 +12,8 @@
   (Epoll/isAvailable))
 
 (defmethod iny.native/event-loop :epoll
-  [_ thread-count]
-  (EpollEventLoopGroup. ^long thread-count))
+  [_ thread-count factory]
+  (EpollEventLoopGroup. ^long thread-count ^ThreadFactory factory))
 
 (defmethod iny.native/socket-chan :epoll
   [_]

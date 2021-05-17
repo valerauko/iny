@@ -1,5 +1,7 @@
 (ns iny.native.uring
-  (:import [io.netty.incubator.channel.uring
+  (:import [java.util.concurrent
+            ThreadFactory]
+           [io.netty.incubator.channel.uring
             IOUring
             IOUringDatagramChannel
             IOUringEventLoopGroup
@@ -10,8 +12,8 @@
   (IOUring/isAvailable))
 
 (defmethod iny.native/event-loop :uring
-  [_ thread-count]
-  (IOUringEventLoopGroup. ^long thread-count))
+  [_ thread-count factory]
+  (IOUringEventLoopGroup. ^long thread-count ^ThreadFactory factory))
 
 (defmethod iny.native/socket-chan :uring
   [_]

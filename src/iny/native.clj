@@ -2,6 +2,8 @@
   (:require [clojure.tools.logging :as log])
   (:import [io.netty.util
             Version]
+           [io.netty.util.concurrent
+            DefaultThreadFactory]
            [io.netty.util.internal
             PlatformDependent]
            [io.netty.channel
@@ -28,7 +30,7 @@
 (defmulti ^MultithreadEventLoopGroup event-loop
   (fn event-dispatch
     ([_] (event-dispatch nil nil))
-    ([pack _] (some #{pack} packs))))
+    ([pack & _] (some #{pack} packs))))
 
 (defmulti ^Class socket-chan
   (fn socket-dispatch
@@ -71,12 +73,17 @@
   (first (filter available? packs)))
 
 (defmethod event-loop :nio
-  [_ thread-count]
-  (NioEventLoopGroup. ^long thread-count))
+  [_ thread-count factory]
+  (NioEventLoopGroup. ^long thread-count ^DefaultThreadFactory factory))
 
 (defmethod event-loop :default
-  [thread-count]
-  (event-loop (wanted) thread-count))
+  ([thread-count]
+   (event-loop thread-count nil))
+  ([thread-count pool-name]
+   (event-loop (wanted) thread-count
+     (DefaultThreadFactory. (str (name (wanted))
+                                 (when pool-name (str "-" (name pool-name)))
+                                 "-event-loop")))))
 
 (defmethod socket-chan :nio
   [_]

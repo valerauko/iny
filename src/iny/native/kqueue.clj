@@ -1,5 +1,7 @@
 (ns iny.native.kqueue
-  (:import [io.netty.channel.kqueue
+  (:import [java.util.concurrent
+            ThreadFactory]
+           [io.netty.channel.kqueue
             KQueue
             KQueueDatagramChannel
             KQueueEventLoopGroup
@@ -10,8 +12,8 @@
   (KQueue/isAvailable))
 
 (defmethod iny.native/event-loop :kqueue
-  [_ thread-count]
-  (KQueueEventLoopGroup. ^long thread-count))
+  [_ thread-count factory]
+  (KQueueEventLoopGroup. ^long thread-count ^ThreadFactory factory))
 
 (defmethod iny.native/socket-chan :kqueue
   [_]

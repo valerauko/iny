@@ -46,9 +46,9 @@
                    http3 true}
               :as options}]
   (let [{:keys [parent child worker] :as threads} (thread-counts)
-        parent-group (event-loop parent)
-        child-group (event-loop child)
-        worker-group (event-loop worker)
+        parent-group (event-loop parent :parent)
+        child-group (event-loop child :child)
+        worker-group (event-loop worker :worker)
         handler-options (merge
                          options
                          {:parent-group parent-group
