@@ -24,8 +24,7 @@
 
   :aliases {"analyze" ["with-profile" "analyze" "do" ["run"]]}
 
-  :profiles {:uberjar {:aot :all
-                       :uberjar-name "iny.jar"}
+  :profiles {:uberjar {:aot :all}
              ; cf https://www.graalvm.org/docs/reference-manual/native-image/#tracing-agent
              :analyze {:aot :all
                        :jvm-opts ["-agentlib:native-image-agent=config-output-dir=./resources"]}
