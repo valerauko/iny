@@ -43,7 +43,7 @@
   [handler & {:keys [port http3]
               :or {port 8080
                    http2 true
-                   http3 true}
+                   http3 false}
               :as options}]
   (let [{:keys [parent child worker] :as threads} (thread-counts)
         parent-group (event-loop parent :parent)
