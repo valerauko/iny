@@ -22,7 +22,7 @@
     (.read ctx))))
 
 (defn server-pipeline
-  [^ChannelPipeline pipeline {:keys [ssl] :as options}]
+  [^ChannelPipeline pipeline {:keys [ssl worker-group] :as options}]
   (when ssl
     (let [context (.build ^SslContextBuilder (->ssl-context-builder ssl))]
       (.addBefore pipeline "ring-handler" "ssl-handler"
@@ -37,9 +37,8 @@
     (.addBefore pipeline "ring-handler" "http-inbound"
                 (HttpRequestDecoder. 4096 8192 65536))
 
-    (let [ring-executor (.executor (.context pipeline "ring-handler"))]
-      (.addBefore pipeline ring-executor "ring-handler" "http-outbound"
-                  (HttpResponseEncoder.))))
+    (.addBefore pipeline worker-group "ring-handler" "http-outbound"
+                (HttpResponseEncoder.)))
 
   (.addBefore pipeline "ring-handler" "continue"
               (HttpServerExpectContinueHandler.))
