@@ -43,11 +43,11 @@
             SupportedCipherSuiteFilter]))
 
 (defn ^Http2ChannelDuplexHandler duplex
-  []
+  [_options]
   (proxy [Http2ChannelDuplexHandler] []))
 
 (defn ^ChannelHandler http-fallback
-  []
+  [options]
   (let [called? (atom false)]
     (handler/inbound
      (channelRead
@@ -55,7 +55,7 @@
       (if-not (first (reset-vals! called? true))
         (let [pipeline (.pipeline ctx)]
           ;; removes the h2c-upgrade handler (no upgrade was attempted)
-          (http1/server-pipeline pipeline)
+          (http1/server-pipeline pipeline options)
           (.fireChannelRead ctx msg)
           ;; it's only there for cleartext
           (when (.get pipeline HttpServerUpgradeHandler)
@@ -65,11 +65,11 @@
 
 (let [builder (Http2FrameCodecBuilder/forServer)]
   (defn ^Http2FrameCodec http2-codec
-    []
+    [_options]
     (.build builder)))
 
 (defn upgrade-factory
-  [^Http2FrameCodec codec http2-handler]
+  [^Http2FrameCodec codec http2-handler _options]
   (reify
     HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [_ proto]
@@ -80,11 +80,11 @@
          (->typed-array ChannelHandler [http2-handler]))))))
 
 (defn ^CleartextHttp2ServerUpgradeHandler h2c-upgrade
-  []
+  [options]
   (let [source-codec (HttpServerCodec. 4096 8192 65536)
-        handler (http2-handler)
-        codec (http2-codec)
-        factory (upgrade-factory codec handler)]
+        handler (http2-handler options)
+        codec (http2-codec options)
+        factory (upgrade-factory codec handler options)]
     (CleartextHttp2ServerUpgradeHandler.
      source-codec
      (HttpServerUpgradeHandler. source-codec factory)
@@ -94,7 +94,7 @@
           (.remove pipeline "http-fallback")
           (.addAfter pipeline (.name ctx) "iny-http2-inbound" handler)
           (.addAfter pipeline (.name ctx) "http2-codec" codec)
-          (.addAfter pipeline (.name ctx) "http2-duplex" (duplex))
+          (.addAfter pipeline (.name ctx) "http2-duplex" (duplex options))
           (.remove pipeline this)))))))
 
 (defn ^SslContext ssl-context
@@ -115,16 +115,18 @@
         (.build))))
 
 (defn server-pipeline
-  [^ChannelPipeline pipeline {:keys [ssl]}]
+  [^ChannelPipeline pipeline {:keys [ssl] :as options}]
   (if ssl
     (let [ctx (ssl-context ssl)]
       (.addBefore pipeline "ring-handler" "ssl-handler"
                   (.newHandler ctx (.alloc (.channel pipeline))))
-      (.addBefore pipeline "ring-handler" "alpn-negotiator" (AlpnNegotiator.))
+      (.addBefore pipeline "ring-handler" "alpn-negotiator"
+                  ;; TODO: pass options to AlpnNegotiator too
+                  (AlpnNegotiator.))
       (.addBefore pipeline "ring-handler" "alpn-pipeline"
                   (handler/inbound
                    (channelRead [_ ctx msg]
-                     (log/info (.pipeline ctx))
+                     (log/warn "Possibly plaintext request in an SSL pipeline")
                      (.close ctx))
                    (userEventTriggered [this ctx evt]
                      (when (or (false? evt) (string? evt))
@@ -133,17 +135,19 @@
                          "h2"
                          (do
                            (.addBefore pipeline "ring-handler" "http2-codec"
-                                       (http2-codec))
+                                       (http2-codec options))
                            ; (.addBefore pipeline "ring-handler" "logger"
                            ;             (LoggingHandler. LogLevel/DEBUG))
                            (.addBefore pipeline "ring-handler" "http2-duplex"
-                                       (duplex))
+                                       (duplex options))
                            (.addBefore pipeline "ring-handler" "iny-http2-inbound"
-                                       (http2-handler)))
+                                       (http2-handler options)))
                          "http/1.1"
-                         (http1/server-pipeline pipeline)
+                         (http1/server-pipeline pipeline options)
                          ;; otherwise shutdown, can't deal with it
                          (.close ctx)))))))
     (do
-      (.addBefore pipeline "ring-handler" "h2c-upgrade" (h2c-upgrade))
-      (.addBefore pipeline "ring-handler" "http-fallback" (http-fallback)))))
+      (.addBefore pipeline "ring-handler" "h2c-upgrade"
+                  (h2c-upgrade options))
+      (.addBefore pipeline "ring-handler" "http-fallback"
+                  (http-fallback options)))))

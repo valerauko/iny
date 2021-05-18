@@ -5,7 +5,7 @@
   (:import [java.util
             Map$Entry]
            [clojure.lang
-            PersistentArrayMap]
+            IPersistentMap]
            [io.netty.util
             AsciiString]
            [io.netty.handler.codec.http
@@ -15,25 +15,26 @@
             DefaultHttp2Headers]))
 
 (defprotocol Headers
-  (^io.netty.handler.codec.http2.DefaultHttp2Headers ->headers [_]))
+  (^io.netty.handler.codec.http2.DefaultHttp2Headers ->headers [_ _]))
 
 ;; DefaultHttp2Headers#copy returns a DefaultHeaders instance
 (let [ver-str (AsciiString. (str "iny/" version))]
   (defn ^DefaultHttp2Headers headers-with-date
-    []
-    (doto (DefaultHttp2Headers. false)
-          (.set HttpHeaderNames/SERVER ver-str)
-          (.set HttpHeaderNames/DATE (date-header-value))
-          (.set http3/alt-svc-name http3/alt-svc-value))))
+    [{:keys [http3] :as opts}]
+    (let [headers (DefaultHttp2Headers. false)]
+      (when http3 (.set headers http3/alt-svc-name http3/alt-svc-value))
+      (doto headers
+        (.set HttpHeaderNames/SERVER ver-str)
+        (.set HttpHeaderNames/DATE (date-header-value opts))))))
 
 (extend-protocol Headers
   nil
-  (->headers [_]
-    (headers-with-date))
+  (->headers [_ opts]
+    (headers-with-date opts))
 
-  PersistentArrayMap
-  (->headers [^Iterable header-map]
-    (let [headers (headers-with-date)
+  IPersistentMap
+  (->headers [header-map opts]
+    (let [headers (headers-with-date opts)
           i (.iterator header-map)]
       (loop []
         (if (.hasNext i)

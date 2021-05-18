@@ -22,28 +22,27 @@
     (.read ctx))))
 
 (defn server-pipeline
-  ([pipeline] (server-pipeline pipeline {}))
-  ([^ChannelPipeline pipeline {:keys [ssl]}]
-   (when ssl
-     (let [context (.build ^SslContextBuilder (->ssl-context-builder ssl))]
-       (.addBefore pipeline "ring-handler" "ssl-handler"
-                   (.newHandler context (.alloc (.channel pipeline))))))
+  [^ChannelPipeline pipeline {:keys [ssl] :as options}]
+  (when ssl
+    (let [context (.build ^SslContextBuilder (->ssl-context-builder ssl))]
+      (.addBefore pipeline "ring-handler" "ssl-handler"
+                  (.newHandler context (.alloc (.channel pipeline))))))
 
-   ;; HACK: fix the problem of the channel getting "stuck" with chunked
-   ;; requests. i have no idea why this is necessary... autoRead just
-   ;; doesn't seem to function the way it does with the http/2 codecs
-   (.addBefore pipeline "ring-handler" "read-more" read-more)
+  ;; HACK: fix the problem of the channel getting "stuck" with chunked
+  ;; requests. i have no idea why this is necessary... autoRead just
+  ;; doesn't seem to function the way it does with the http/2 codecs
+  (.addBefore pipeline "ring-handler" "read-more" read-more)
 
-   (when-not (.get pipeline HttpServerCodec)
-     (.addBefore pipeline "ring-handler" "http-inbound"
-                 (HttpRequestDecoder. 4096 8192 65536))
+  (when-not (.get pipeline HttpServerCodec)
+    (.addBefore pipeline "ring-handler" "http-inbound"
+                (HttpRequestDecoder. 4096 8192 65536))
 
-     (let [ring-executor (.executor (.context pipeline "ring-handler"))]
-       (.addBefore pipeline ring-executor "ring-handler" "http-outbound"
-                   (HttpResponseEncoder.))))
+    (let [ring-executor (.executor (.context pipeline "ring-handler"))]
+      (.addBefore pipeline ring-executor "ring-handler" "http-outbound"
+                  (HttpResponseEncoder.))))
 
-   (.addBefore pipeline "ring-handler" "continue"
-               (HttpServerExpectContinueHandler.))
+  (.addBefore pipeline "ring-handler" "continue"
+              (HttpServerExpectContinueHandler.))
 
-   (.addBefore pipeline "ring-handler" "iny-http1-inbound"
-               (http-handler))))
+  (.addBefore pipeline "ring-handler" "iny-http1-inbound"
+              (http-handler options)))

@@ -37,11 +37,11 @@
         (ref-get-or-set date-format (header-date-format))]
     (AsciiString. (.format format (Date.)))))
 
-(defn ^CharSequence date-header-value []
+(defn ^CharSequence date-header-value [_opts]
   (ref-get-or-set date-value (formatted-header-date)))
 
 (defn schedule-date-value-update
-  [^ChannelHandlerContext ctx]
+  [^ChannelHandlerContext ctx _opts]
   (let [ref (AtomicReference. (formatted-header-date))]
     ; header date is accurate to seconds
     ; so have it update every second

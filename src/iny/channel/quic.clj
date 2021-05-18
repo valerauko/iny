@@ -24,7 +24,7 @@
             QuicSslContextBuilder]))
 
 (defn ^QuicServerCodecBuilder quic-builder
-  [{:keys [worker-group user-handler ssl] :as options}]
+  [{:keys [ssl] :as opts}]
   (let [ssl-context (-> ^QuicSslContextBuilder (->ssl-context-builder ssl :quic)
                         (.applicationProtocols
                          (Http3/supportedApplicationProtocols))
@@ -40,7 +40,7 @@
           (.initialMaxStreamDataBidirectionalRemote 65536)
           (.initialMaxStreamsBidirectional 50)
           (.tokenHandler InsecureQuicTokenHandler/INSTANCE)
-          (.handler (http3/init-connection worker-group user-handler)))))
+          (.handler (http3/init-connection opts)))))
 
 (defn ^Bootstrap bootstrap
   [{:keys [parent-group] :as options}]

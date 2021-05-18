@@ -69,20 +69,21 @@
 
 (defn ^ChannelFuture respond-500
   [^ChannelHandlerContext ctx
+   opts
    ^Throwable             ex]
   (let [error-head (doto (DefaultHttpResponse.
                           HttpVersion/HTTP_1_1
                           HttpResponseStatus/INTERNAL_SERVER_ERROR
-                          (headers-with-date))
+                          (headers-with-date opts))
                          (HttpUtil/setContentLength 0))]
     (write-response ctx error-head nil)))
 
 (defn ^ChannelFuture respond
-  [^ChannelHandlerContext ctx
+  [^ChannelHandlerContext ctx opts
    {:keys [body headers status]}]
   (let [status (->status status)
         buffer (->buffer body ctx)
-        headers (->headers headers)
+        headers (->headers headers opts)
         response (DefaultHttpResponse.
                   HttpVersion/HTTP_1_1
                   status
@@ -97,6 +98,7 @@
 
 (defn netty->ring-request
   [^ChannelHandlerContext ctx
+   _opts
    ^InputStream           body
    ^HttpRequest           req]
   (let [uri (.uri req)]
@@ -121,30 +123,8 @@
   [^HttpRequest req]
   (= (content-length req) 0))
 
-(def data-factory
-  (DefaultHttpDataFactory. DefaultHttpDataFactory/MINSIZE))
-
-(defprotocol LogUpload
-  (log-it [_]))
-
-(extend-protocol LogUpload
-  Attribute
-  (log-it [^Attribute attr]
-   (log/info {(.getName attr) (.getValue attr)}))
-
-  FileUpload
-  (log-it [^FileUpload upload]
-   (log/info
-    {:field-name (.getName upload)
-     :filename (.getFilename upload)
-     :content-type (.getContentType upload)
-     :contents (if (.isInMemory upload)
-                 (.getByteBuf upload)
-                 (.getFile upload))
-     :size (.definedLength upload)})))
-
 (defn ^ChannelHandler http-handler
-  []
+  [opts]
   (let [stream (atom nil)
         keep-alive? (atom false)
         date-future (atom nil)
@@ -158,7 +138,7 @@
                 (write [_ ctx msg promise]
                   (if (map? msg)
                     (do
-                      (let [ftr ^ChannelFuture (respond ctx msg)]
+                      (let [ftr ^ChannelFuture (respond ctx opts msg)]
                         (.addListener
                          ftr
                          ChannelFutureListener/FIRE_EXCEPTION_ON_FAILURE)
@@ -177,10 +157,10 @@
         (log/error ex)
         (when-not (or (instance? IOException ex)
                       (instance? RejectedExecutionException ex))
-          (respond-500 ctx ex))
+          (respond-500 ctx opts ex))
         (.close ctx))
       (channelRegistered [_ ctx]
-        (reset! date-future (schedule-date-value-update ctx)))
+        (reset! date-future (schedule-date-value-update ctx opts)))
       (channelUnregistered [_ ctx]
         (when-let [ftr (first (reset-vals! date-future nil))]
           (.cancel ^ScheduledFuture ftr false)))
@@ -192,7 +172,7 @@
               ;; request without body
               (.fireChannelRead
                ctx
-               (netty->ring-request ctx (InputStream/nullInputStream) msg))
+               (netty->ring-request ctx opts (InputStream/nullInputStream) msg))
 
               ;; else request with body
               (let [^long len (or (content-length msg) 65536)]
@@ -205,7 +185,7 @@
                     (.setAutoRead (.config (.channel ctx)) false))
                   (.fireChannelRead
                    ctx
-                   (netty->ring-request ctx (InputStream/nullInputStream) msg))))))
+                   (netty->ring-request ctx opts (InputStream/nullInputStream) msg))))))
 
           (instance? HttpContent msg)
           (when-let [^PipedOutputStream out-stream @stream]
@@ -218,4 +198,5 @@
                 (.close out-stream)
                 (reset! stream nil)
                 (.setAutoRead (.config (.channel ctx)) true)))))
+
         (release msg)))))

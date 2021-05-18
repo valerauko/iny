@@ -13,21 +13,22 @@
             QuicStreamChannel]))
 
 (defn init-stream
-  [worker-group user-handler]
+  [{:keys [worker-group user-handler] :as options}]
   (proxy [ChannelInitializer] []
     (initChannel [^QuicStreamChannel ch]
       (let [pipeline (.pipeline ch)]
         (.addLast pipeline "http3-codec" (Http3FrameToHttpObjectCodec. true))
         (.addLast pipeline "read-more" read-more)
         (.addLast pipeline worker-group "ring-handler" user-handler)
-        (.addBefore pipeline "ring-handler" "http-handler" (http-handler))))))
+        (.addBefore pipeline "ring-handler" "http-handler"
+                    (http-handler options))))))
 
 (defn init-connection
-  [worker-group user-handler]
+  [options]
   (proxy [ChannelInitializer] []
     (initChannel [^QuicChannel ch]
       (.addLast
        (.pipeline ch)
        "http3-cxn-handler"
        (Http3ServerConnectionHandler.
-        (init-stream worker-group user-handler))))))
+        (init-stream options))))))
