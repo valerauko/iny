@@ -20,6 +20,7 @@
                   :exclusions [io.netty.incubator/netty-incubator-codec-quic]]]
 
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
+  :java-source-paths ["src/java"]
 
   :aliases {"analyze" ["with-profile" "analyze" "do" ["run"]]}
 
@@ -29,7 +30,6 @@
              :analyze {:aot :all
                        :jvm-opts ["-agentlib:native-image-agent=config-output-dir=./resources"]}
              :dev {:source-paths ["dev"]
-                   :java-source-paths ["src/java"]
                    :plugins [[lein-ancient "0.7.0"]]
                    :jvm-opts
                    ["-server"
