@@ -20,7 +20,7 @@
         (.addLast pipeline "http3-codec" (Http3FrameToHttpObjectCodec. true))
         (.addLast pipeline "read-more" read-more)
         (.addLast pipeline worker-group "ring-handler" user-handler)
-        (.addBefore pipeline "ring-handler" "http-handler"
+        (.addBefore pipeline "ring-handler" "iny-http1-inbound"
                     (http-handler options))))))
 
 (defn init-connection
