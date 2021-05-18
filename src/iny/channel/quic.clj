@@ -16,8 +16,6 @@
             ChannelOption]
            [io.netty.handler.ssl.util
             SelfSignedCertificate]
-           [io.netty.incubator.channel.uring
-            IOUringDatagramChannel]
            [io.netty.incubator.codec.http3
             Http3]
            [io.netty.incubator.codec.quic
