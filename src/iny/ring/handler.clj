@@ -12,7 +12,7 @@
   (handler/inbound
     (exceptionCaught [_ ctx ex]
       (log/warn ex)
-      (.close ctx (.voidPromise ctx)))
+      (.close ctx))
     (channelRead [_ ctx msg]
       (when (map? msg)
         (let [stream (:iny.http2/stream msg)

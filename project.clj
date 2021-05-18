@@ -1,4 +1,4 @@
-(defproject social.kitsune/iny "0.1.5"
+(defproject social.kitsune/iny "0.1.6"
   :description "Performant Clojure HTTP server"
   :url "https://github.com/valerauko/iny"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
