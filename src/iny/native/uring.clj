@@ -22,5 +22,3 @@
 (defmethod iny.native/datagram-chan :uring
   [_]
   IOUringDatagramChannel)
-
-; (io.netty.incubator.channel.uring.IOUring/unavailabilityCause)

@@ -99,7 +99,6 @@
 
 (defstate server
   :start
-  ;; :ssl (->ssl-opts (SelfSignedCertificate.))
   (server/server my-handler :http2 true :http3 true :ssl local-cert)
   :stop
   (.close ^java.io.Closeable server))
