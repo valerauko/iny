@@ -8,6 +8,8 @@
             ChannelHandler
             ChannelHandler$Sharable]
            [io.netty.handler.codec.http
+            HttpContentCompressor
+            HttpContentDecompressor
             HttpRequestDecoder
             HttpResponseEncoder
             HttpServerCodec
@@ -22,7 +24,7 @@
     (.read ctx))))
 
 (defn server-pipeline
-  [^ChannelPipeline pipeline {:keys [ssl worker-group] :as options}]
+  [^ChannelPipeline pipeline {:keys [ssl worker-group compression] :as options}]
   (when (and ssl (not (.get pipeline "ssl-handler")))
     (let [context (.build ^SslContextBuilder (->ssl-context-builder ssl))]
       (.addBefore pipeline "ring-handler" "ssl-handler"
@@ -39,6 +41,12 @@
 
     (.addBefore pipeline worker-group "ring-handler" "http-outbound"
                 (HttpResponseEncoder.)))
+
+  (when compression
+    (.addBefore pipeline "ring-handler" "compression-in"
+                (HttpContentDecompressor.))
+    (.addBefore pipeline worker-group "ring-handler" "compression-out"
+                (HttpContentCompressor.)))
 
   (.addBefore pipeline "ring-handler" "continue"
               (HttpServerExpectContinueHandler.))
