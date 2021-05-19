@@ -23,7 +23,7 @@
 
 (defn server-pipeline
   [^ChannelPipeline pipeline {:keys [ssl worker-group] :as options}]
-  (when ssl
+  (when (and ssl (not (.get pipeline "ssl-handler")))
     (let [context (.build ^SslContextBuilder (->ssl-context-builder ssl))]
       (.addBefore pipeline "ring-handler" "ssl-handler"
                   (.newHandler context (.alloc (.channel pipeline))))))
