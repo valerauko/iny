@@ -72,8 +72,8 @@
           (close [_]
             (when-not (first (reset-vals! closed? true))
               (log/info "Shutting down Iny server")
-              (-> tcp-channel (.close) (.sync))
-              (when http3 (-> udp-channel (.close) (.sync)))
+              (-> ^Channel tcp-channel (.close) (.sync))
+              (when http3 (-> ^Channel udp-channel (.close) (.sync)))
               (shutdown-gracefully parent-group)
               (shutdown-gracefully child-group)
               (shutdown-gracefully worker-group)))))
